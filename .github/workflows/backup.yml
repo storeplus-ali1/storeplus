@@ -8,11 +8,15 @@ jobs:
     steps:
       - name: Dump database (encrypted)
         env:
-          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          PGHOST: aws-1-eu-west-1.pooler.supabase.com
+          PGPORT: '5432'
+          PGUSER: postgres.vwuicbxjnayszplhhoyg
+          PGDATABASE: postgres
           KEY: ${{ secrets.BACKUP_KEY }}
         run: |
           sudo apt-get install -y postgresql-client >/dev/null
-          pg_dump "$DB_URL" --no-owner --no-privileges -Fc -f db.dump
+          pg_dump --no-owner --no-privileges -Fc -f db.dump
           openssl enc -aes-256-cbc -pbkdf2 -salt -pass env:KEY -in db.dump -out db-$(date +%F).dump.enc
           rm db.dump
       - name: Receipt images (encrypted)
@@ -29,7 +33,7 @@ jobs:
           done
           tar czf receipts.tgz r && openssl enc -aes-256-cbc -pbkdf2 -salt -pass env:KEY -in receipts.tgz -out receipts-$(date +%F).tgz.enc
       - name: Restore test
-        env: {DB_URL: '${{ secrets.SUPABASE_DB_URL }}', KEY: '${{ secrets.BACKUP_KEY }}'}
+        env: {KEY: '${{ secrets.BACKUP_KEY }}'}
         run: |
           openssl enc -d -aes-256-cbc -pbkdf2 -pass env:KEY -in db-*.dump.enc -out t.dump
           pg_restore -l t.dump | grep -c "TABLE DATA" | tee n.txt
