@@ -36,11 +36,15 @@ jobs:
         env:
           KEY: ${{ secrets.BACKUP_KEY }}
           PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          PGHOST: aws-1-eu-west-1.pooler.supabase.com
+          PGPORT: '5432'
+          PGUSER: postgres.vwuicbxjnayszplhhoyg
         run: |
           openssl enc -d -aes-256-cbc -pbkdf2 -pass env:KEY -in db-*.dump.enc -out t.dump
           docker run -d --name scratch -e POSTGRES_PASSWORD=x -p 5433:5432 postgres:17 >/dev/null
           for i in $(seq 1 30); do PGPASSWORD=x pg_isready -h localhost -p 5433 && break; sleep 2; done
           sleep 3
+          for r in anon authenticated service_role supabase_admin authenticator; do PGPASSWORD=x psql -h localhost -p 5433 -U postgres -qc "create role $r" || true; done
           PGPASSWORD=x pg_restore -h localhost -p 5433 -U postgres -d postgres --no-owner --no-privileges t.dump || true
           TABLES=$(PGPASSWORD=x psql -h localhost -p 5433 -U postgres -Atc "select tablename from pg_tables where schemaname='public' order by 1")
           FAIL=0; { echo "### Backup restore test $(date -u +%F)"; echo "| table | live | restored |"; echo "|---|---|---|"; } > summary.md
