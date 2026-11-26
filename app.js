@@ -54,7 +54,7 @@ function viewAuth(mode = (location.hash === '#/signup' ? 'signup' : 'login')) {
   <form id="f">
   ${mode === 'signup' ? `<label class="lbl">رقم الهاتف</label><input class="in ltr" name="phone" required inputmode="numeric" pattern="01[0-9]{9}" placeholder="01XXXXXXXXX" autocomplete="tel">
   <label class="lbl">الاسم الثلاثي</label><input class="in" name="name" required minlength="6" autocomplete="name">` : ''}
-  <label class="lbl">حساب Gmail</label><input class="in ltr" type="email" name="email" required autocomplete="email">
+  ${mode === 'login' ? '<label class="lbl">رقم الهاتف أو البريد</label><input class="in ltr" name="email" required autocomplete="username" placeholder="01XXXXXXXXX">' : '<label class="lbl">حساب Gmail</label><input class="in ltr" type="email" name="email" required autocomplete="email">'}
   <label class="lbl">كلمة المرور</label><input class="in ltr" type="password" name="pw" required minlength="8" autocomplete="${mode === 'login' ? 'current-password' : 'new-password'}">
   <div style="height:16px"></div><button class="btn" type="submit">${mode === 'login' ? 'دخول' : 'إنشاء الحساب'}</button>
   ${mode === 'login' ? '<div style="height:12px"></div><button class="btn o s" type="button" id="forgot">نسيت كلمة المرور؟</button>' : ''}
@@ -64,8 +64,15 @@ function viewAuth(mode = (location.hash === '#/signup' ? 'signup' : 'login')) {
   f.onsubmit = async (e) => {
     e.preventDefault(); try { if (!(window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform()) && 'Notification' in window && Notification.permission === 'default' && !(isIOS && !isStandalone)) await Notification.requestPermission(); } catch (e2) {} const d = Object.fromEntries(new FormData(f)); const b = f.querySelector('button[type=submit]'); b.disabled = true;
     if (mode === 'login') {
-      const { error } = await SB.auth.signInWithPassword({ email: d.email.trim(), password: d.pw });
-      if (error) { toast('البريد أو كلمة المرور غير صحيحة', true); b.disabled = false; return; }
+      const id = d.email.trim(); let error = null;
+      if (id.includes('@')) ({ error } = await SB.auth.signInWithPassword({ email: id, password: d.pw }));
+      else {
+        try {
+          const r = await fetch(SUPABASE_URL + '/functions/v1/phone-login', { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: SUPABASE_KEY }, body: JSON.stringify({ phone: id, password: d.pw }) });
+          const j = await r.json(); if (!r.ok || !j.access_token) error = true; else ({ error } = await SB.auth.setSession({ access_token: j.access_token, refresh_token: j.refresh_token }));
+        } catch (e3) { error = true; }
+      }
+      if (error) { toast('رقم الهاتف أو كلمة المرور غير صحيحة', true); b.disabled = false; return; }
     } else {
       const { data, error } = await SB.auth.signUp({ email: d.email.trim(), password: d.pw, options: { data: { full_name: d.name.trim(), phone: d.phone.trim() } } });
       if (error) { toast(/already|registered|Database error/i.test(error.message) ? 'البريد أو رقم الهاتف مسجل من قبل' : 'تعذر إنشاء الحساب: ' + error.message, true); b.disabled = false; return; }
@@ -74,11 +81,7 @@ function viewAuth(mode = (location.hash === '#/signup' ? 'signup' : 'login')) {
     await boot();
   };
   const fg = $('#forgot');
-  if (fg) fg.onclick = async () => {
-    const email = f.email.value.trim(); if (!email) return toast('اكتب بريدك أولًا', true);
-    await SB.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname });
-    toast('إن كان البريد مسجلًا فسيصلك رابط الاستعادة');
-  };
+  if (fg) fg.onclick = () => { window.open('https://wa.me/201064774759?text=' + encodeURIComponent('مرحبًا، نسيت كلمة المرور وأريد استعادتها. رقم هاتفي المسجل: ' + f.email.value.trim()), '_blank'); toast('تواصل مع خدمة العملاء لاستعادة كلمة المرور'); };
 }
 function viewRecovery() {
   $('#nav').hidden = true;
