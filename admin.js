@@ -131,16 +131,35 @@ async function vSvc(id) {
   $('#addP').onclick = async () => { const n = prompt('اسم الباقة'); const pr = +prompt('السعر بالجنيه المصري'); if (!n || !(pr >= 0)) return; const { error } = await SB.from('packages').insert({ service_id: +id, name_ar: n, price: pr }); if (error) return toast(error.message, true); vSvc(id); };
 }
 
+async function admFn(name, body) {
+  const { data: { session } } = await SB.auth.getSession();
+  const r = await fetch(SUPABASE_URL + '/functions/v1/' + name, { method: 'POST', headers: { Authorization: 'Bearer ' + session.access_token, apikey: SUPABASE_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  let j = {}; try { j = await r.json(); } catch (e) {} return { ok: r.ok, j };
+}
 async function vCustomers() {
   nav('customers'); loading();
   const { data } = await SB.from('profiles').select('*').eq('role', 'customer').order('created_at', { ascending: false });
-  app.innerHTML = `${head('العملاء')}<div class="card"><h2>تغيير كلمة مرور عميل</h2><label class="lbl">رقم هاتف العميل</label><input class="in ltr" id="rp" inputmode="numeric" placeholder="01XXXXXXXXX"><label class="lbl">كلمة المرور الجديدة (8 أحرف على الأقل)</label><input class="in ltr" id="rw" minlength="8"><div style="height:12px"></div><button class="btn" id="rb">حفظ كلمة المرور الجديدة</button></div>` + ((data || []).map((u) => `<div class="row"><div class="t"><b>${esc(u.full_name)}</b><em><span class="ltr">${num(u.phone)}</span></em></div><div class="p">${num(dt(u.created_at).slice(0, 10))}</div></div>`).join('') || '<div class="empty">لا يوجد عملاء</div>');
-  $('#rb').onclick = async () => {
-    const ph = $('#rp').value.trim(), pw = $('#rw').value; if (ph.replace(/\D/g, '').length < 10 || pw.length < 8) return toast('أدخل رقم الهاتف وكلمة مرور من 8 أحرف على الأقل', true);
-    if (!confirm('تغيير كلمة مرور العميل صاحب الرقم ' + ph + '؟')) return;
-    try { const { data: { session } } = await SB.auth.getSession(); const r = await fetch(SUPABASE_URL + '/functions/v1/admin-set-password', { method: 'POST', headers: { Authorization: 'Bearer ' + session.access_token, apikey: SUPABASE_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: ph, password: pw }) }); const j = await r.json();
-      if (!r.ok) return toast(j.error === 'not_found' ? 'لا يوجد عميل بهذا الرقم' : 'تعذر تغيير كلمة المرور', true); $('#rw').value = ''; toast('تم تغيير كلمة المرور. أبلغ العميل بها'); } catch (e) { toast('تعذر الاتصال', true); }
+  app.innerHTML = `${head('العملاء')}<div class="card"><h2>بحث برقم الهاتف</h2><input class="in ltr" id="sp" inputmode="numeric" placeholder="01XXXXXXXXX"><div style="height:12px"></div><button class="btn" id="sb">بحث</button></div><div id="cres"></div>` + ((data || []).map((u) => `<div class="row" data-ph="${esc(u.phone)}" style="cursor:pointer"><div class="t"><b>${esc(u.full_name)}</b><em><span class="ltr">${num(u.phone)}</span></em></div><div class="p">${num(dt(u.created_at).slice(0, 10))}</div></div>`).join('') || '<div class="empty">لا يوجد عملاء</div>');
+  const find = async (ph) => {
+    if (ph.replace(/\D/g, '').length < 10) return toast('أدخل رقم هاتف صحيح', true);
+    $('#cres').innerHTML = '<div class="empty">جاري البحث...</div>';
+    const { ok, j } = await admFn('admin-customer', { action: 'search', phone: ph });
+    if (!ok) { $('#cres').innerHTML = ''; return toast(j.error === 'not_found' ? 'لا يوجد عميل بهذا الرقم' : 'تعذر البحث', true); }
+    const p = j.profile, ST = { awaiting_payment: 'بانتظار الدفع', proof_submitted: 'تم رفع الإثبات', payment_confirmed: 'تم تأكيد الدفع', in_progress: 'قيد التنفيذ', completed: 'تم التسليم', rejected: 'مرفوض', cancelled: 'ملغي' };
+    $('#cres').innerHTML = `<div class="card"><h2>${esc(p.full_name)} <span class="badge ${p.banned ? 'r' : 'g'}">${p.banned ? 'محظور' : 'نشط'}</span></h2>
+    <div class="kv"><span>رقم الهاتف</span><span>${num(p.phone)}</span></div><div class="kv"><span>تاريخ التسجيل</span><span>${num(dt(p.created_at))}</span></div><div class="kv"><span>آخر دخول</span><span>${p.last_sign_in_at ? num(dt(p.last_sign_in_at)) : 'لم يدخل'}</span></div><div class="kv"><span>الأجهزة المفعّلة للإشعارات</span><span>${num(p.devices)}</span></div><div class="kv"><span>عدد الطلبات</span><span>${num(j.orders.length)}</span></div><div class="kv"><span>إجمالي المشتريات المسلّمة</span><span>${num(j.spent)} جنيه مصري</span></div>
+    <p class="sub">المتجر يعمل بالدفع اليدوي عبر فودافون كاش لكل طلب، فلا توجد محفظة رصيد. كل المدفوعات ظاهرة في الطلبات.</p>
+    <div style="height:10px"></div><button class="btn ${p.banned ? '' : 'r'}" id="bn">${p.banned ? 'إلغاء الحظر' : 'حظر العميل'}</button><div style="height:8px"></div><button class="btn r" id="dl">حذف الحساب نهائياً</button></div>
+    <div class="card"><h2>تغيير كلمة المرور</h2><label class="lbl">كلمة المرور الجديدة (8 أحرف على الأقل)</label><input class="in ltr" id="rw" minlength="8"><div style="height:12px"></div><button class="btn" id="rb">حفظ كلمة المرور الجديدة</button></div>
+    <div class="sec"><b>الطلبات</b></div>${j.orders.map((o) => `<a class="row" href="#/order/${o.id}"><div class="t"><b>${num(o.order_no)}</b><em>${esc(o.service_name_ar)} - ${esc(o.package_name_ar)}</em></div><div class="p">${num(o.total)} جنيه مصري<br><span class="sub">${ST[o.status] || o.status}</span></div></a>`).join('') || '<div class="empty">لا توجد طلبات</div>'}
+    <div class="sec"><b>آخر الإشعارات</b></div>${j.notifications.map((n) => `<div class="card"><b>${esc(n.title)}</b><p class="sub">${esc(n.body)}</p><div class="sub">${num(dt(n.created_at))}</div></div>`).join('') || '<div class="empty">لا توجد إشعارات</div>'}`;
+    $('#bn').onclick = async () => { const act = p.banned ? 'unban' : 'ban'; if (!confirm((p.banned ? 'إلغاء حظر ' : 'حظر ') + 'العميل صاحب الرقم ' + p.phone + '؟')) return; const r = await admFn('admin-customer', { action: act, phone: p.phone }); toast(r.ok ? (p.banned ? 'تم إلغاء الحظر' : 'تم حظر العميل') : 'تعذر التنفيذ', !r.ok); if (r.ok) find(p.phone); };
+    $('#dl').onclick = async () => { if (!confirm('حذف حساب ' + p.full_name + ' وكل طلباته وإشعاراته نهائياً؟ لا يمكن التراجع.')) return; if (prompt('اكتب رقم الهاتف للتأكيد') !== p.phone) return toast('الرقم غير مطابق، لم يتم الحذف', true); const r = await admFn('admin-customer', { action: 'delete', phone: p.phone }); toast(r.ok ? 'تم حذف الحساب' : 'تعذر الحذف', !r.ok); if (r.ok) vCustomers(); };
+    $('#rb').onclick = async () => { const pw = $('#rw').value; if (pw.length < 8) return toast('كلمة المرور 8 أحرف على الأقل', true); if (!confirm('تغيير كلمة مرور العميل صاحب الرقم ' + p.phone + '؟')) return; try { const r = await admFn('admin-set-password', { phone: p.phone, password: pw }); if (!r.ok) return toast('تعذر تغيير كلمة المرور', true); $('#rw').value = ''; toast('تم تغيير كلمة المرور. أبلغ العميل بها'); } catch (e) { toast('تعذر الاتصال', true); } };
+    $('#cres').scrollIntoView();
   };
+  $('#sb').onclick = () => find($('#sp').value.trim());
+  $$('[data-ph]').forEach((r) => (r.onclick = () => { $('#sp').value = r.dataset.ph; find(r.dataset.ph); }));
 }
 
 async function vNotify() {
