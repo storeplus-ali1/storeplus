@@ -58,7 +58,7 @@ jobs:
           rm -f $R/mipmap-*/ic_launcher*.png $R/mipmap-anydpi-v26/ic_launcher*.xml
           cp -r androidres/mipmap-* $R/
           cp androidres/values/ic_launcher_background.xml $R/values/
-          for d in $R/drawable*; do [ -f $d/splash.png ] && cp androidres/splash.png $d/splash.png; done
+          for f in $(find $R -name splash.png); do cp androidres/splash.png $f; done
       - run: npx cap sync android
       - name: Build debug APK
         working-directory: android
