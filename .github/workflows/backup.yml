@@ -32,12 +32,32 @@ jobs:
             done
           done
           tar czf receipts.tgz r && openssl enc -aes-256-cbc -pbkdf2 -salt -pass env:KEY -in receipts.tgz -out receipts-$(date +%F).tgz.enc
-      - name: Restore test
-        env: {KEY: '${{ secrets.BACKUP_KEY }}'}
+      - name: Real restore test (into a scratch Postgres) and compare with live DB
+        env:
+          KEY: ${{ secrets.BACKUP_KEY }}
+          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: |
           openssl enc -d -aes-256-cbc -pbkdf2 -pass env:KEY -in db-*.dump.enc -out t.dump
-          pg_restore -l t.dump | grep -c "TABLE DATA" | tee n.txt
-          test "$(cat n.txt)" -gt 5
+          docker run -d --name scratch -e POSTGRES_PASSWORD=x -p 5433:5432 postgres:17 >/dev/null
+          for i in $(seq 1 30); do PGPASSWORD=x pg_isready -h localhost -p 5433 && break; sleep 2; done
+          sleep 3
+          PGPASSWORD=x pg_restore -h localhost -p 5433 -U postgres -d postgres --no-owner --no-privileges t.dump || true
+          TABLES=$(PGPASSWORD=x psql -h localhost -p 5433 -U postgres -Atc "select tablename from pg_tables where schemaname='public' order by 1")
+          FAIL=0; { echo "### Backup restore test $(date -u +%F)"; echo "| table | live | restored |"; echo "|---|---|---|"; } > summary.md
+          for t in $TABLES; do
+            L=$(psql -h $PGHOST -p $PGPORT -U $PGUSER -d postgres -Atc "select count(*) from public.\"$t\"")
+            R=$(PGPASSWORD=x psql -h localhost -p 5433 -U postgres -Atc "select count(*) from public.\"$t\"")
+            echo "| $t | $L | $R |" >> summary.md
+            [ "$L" = "$R" ] || FAIL=1
+          done
+          AU=$(PGPASSWORD=x psql -h localhost -p 5433 -U postgres -Atc "select count(*) from auth.users")
+          echo "auth.users restored: $AU" >> summary.md
+          openssl enc -d -aes-256-cbc -pbkdf2 -pass env:KEY -in receipts-*.tgz.enc | tar tz | grep -vE '/$' > rfiles.txt || true
+          echo "receipt files in backup: $(wc -l < rfiles.txt)" >> summary.md
+          cat summary.md >> $GITHUB_STEP_SUMMARY
+          cat summary.md
+          [ -n "$TABLES" ] || FAIL=1
+          test "$FAIL" = 0
       - uses: actions/upload-artifact@v4
         with:
           name: storeplus-backup-${{ github.run_id }}
