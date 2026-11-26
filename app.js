@@ -56,7 +56,7 @@ function viewAuth(mode = (location.hash === '#/signup' ? 'signup' : 'login')) {
   $('#t1').onclick = () => viewAuth('login'); $('#t2').onclick = () => viewAuth('signup');
   const f = $('#f');
   f.onsubmit = async (e) => {
-    e.preventDefault(); try { if ('Notification' in window && Notification.permission === 'default' && !(isIOS && !isStandalone)) await Notification.requestPermission(); } catch (e2) {} const d = Object.fromEntries(new FormData(f)); const b = f.querySelector('button[type=submit]'); b.disabled = true;
+    e.preventDefault(); try { if (!(window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform()) && 'Notification' in window && Notification.permission === 'default' && !(isIOS && !isStandalone)) await Notification.requestPermission(); } catch (e2) {} const d = Object.fromEntries(new FormData(f)); const b = f.querySelector('button[type=submit]'); b.disabled = true;
     if (mode === 'login') {
       const { error } = await SB.auth.signInWithPassword({ email: d.email.trim(), password: d.pw });
       if (error) { toast('البريد أو كلمة المرور غير صحيحة', true); b.disabled = false; return; }
@@ -224,7 +224,7 @@ async function boot() {
   if (!ME) { await SB.auth.signOut(); return viewAuth(); }
   if (ME.role === 'admin') { location.replace('admin.html'); return; }
   const [s] = await Promise.all([getSettings(), loadCatalog(), refreshUnread()]); SETTINGS = s;
-  if ('Notification' in window && Notification.permission === 'granted' && VAPID_PUBLIC) enablePush(true).catch(() => {});
+  if ((window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform()) || ('Notification' in window && Notification.permission === 'granted' && VAPID_PUBLIC)) enablePush(true).catch(() => {});
   await route();
 }
 window.addEventListener('hashchange', route);

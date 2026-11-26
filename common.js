@@ -75,6 +75,21 @@ async function myProfile() {
 function b64u(s) { const p = '='.repeat((4 - (s.length % 4)) % 4); const b = (s + p).replace(/-/g, '+').replace(/_/g, '/'); const r = atob(b); return Uint8Array.from([...r].map((c) => c.charCodeAt(0))); }
 async function enablePush(quiet) {
   const T = (m, b) => { if (!quiet) toast(m, b); };
+  const C = window.Capacitor, PN = C && C.Plugins && C.Plugins.PushNotifications;
+  if (C && C.isNativePlatform && C.isNativePlatform() && PN) {
+    try {
+      let st = await PN.checkPermissions(); if (st.receive !== 'granted') st = await PN.requestPermissions();
+      if (st.receive !== 'granted') { T('لم يتم السماح بالإشعارات', true); return false; }
+      await PN.removeAllListeners();
+      PN.addListener('registration', async (t) => {
+        const { data: { user } } = await SB.auth.getUser(); if (!user) return;
+        const { error } = await SB.from('push_subscriptions').upsert({ user_id: user.id, endpoint: 'fcm:' + t.value, p256dh: 'fcm', auth: 'fcm' }, { onConflict: 'endpoint' });
+        if (!error) T('تم تفعيل الإشعارات');
+      });
+      PN.addListener('pushNotificationActionPerformed', (a) => { const u = a.notification && a.notification.data && a.notification.data.url; if (u) location.hash = u.replace(/^.*#/, '#'); });
+      await PN.register(); return true;
+    } catch (e) { T('تعذر تفعيل الإشعارات', true); return false; }
+  }
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) { T('المتصفح لا يدعم الإشعارات. على الآيفون أضف التطبيق للشاشة الرئيسية أولًا', true); return false; }
   if (!VAPID_PUBLIC) { T('الإشعارات لم تُفعّل بعد من الخادم', true); return false; }
   const perm = await Notification.requestPermission();
