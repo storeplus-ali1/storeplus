@@ -1,0 +1,42 @@
+name: daily-backup
+on:
+  schedule: [{cron: '17 2 * * *'}]
+  workflow_dispatch:
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dump database (encrypted)
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          KEY: ${{ secrets.BACKUP_KEY }}
+        run: |
+          sudo apt-get install -y postgresql-client >/dev/null
+          pg_dump "$DB_URL" --no-owner --no-privileges -Fc -f db.dump
+          openssl enc -aes-256-cbc -pbkdf2 -salt -pass env:KEY -in db.dump -out db-$(date +%F).dump.enc
+          rm db.dump
+      - name: Receipt images (encrypted)
+        env:
+          URL: https://vwuicbxjnayszplhhoyg.supabase.co
+          SRK: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          KEY: ${{ secrets.BACKUP_KEY }}
+        run: |
+          mkdir r
+          for b in $(curl -s -H "apikey: $SRK" -H "Authorization: Bearer $SRK" $URL/storage/v1/bucket | jq -r '.[].id'); do
+            curl -s -X POST -H "apikey: $SRK" -H "Authorization: Bearer $SRK" -H 'Content-Type: application/json' -d '{"prefix":"","limit":1000}' $URL/storage/v1/object/list/$b | jq -r '.[]|select(.id!=null)|.name' | while read f; do
+              mkdir -p "r/$b/$(dirname "$f")"; curl -s -H "Authorization: Bearer $SRK" "$URL/storage/v1/object/$b/$f" -o "r/$b/$f"
+            done
+          done
+          tar czf receipts.tgz r && openssl enc -aes-256-cbc -pbkdf2 -salt -pass env:KEY -in receipts.tgz -out receipts-$(date +%F).tgz.enc
+      - name: Restore test
+        env: {DB_URL: '${{ secrets.SUPABASE_DB_URL }}', KEY: '${{ secrets.BACKUP_KEY }}'}
+        run: |
+          openssl enc -d -aes-256-cbc -pbkdf2 -pass env:KEY -in db-*.dump.enc -out t.dump
+          pg_restore -l t.dump | grep -c "TABLE DATA" | tee n.txt
+          test "$(cat n.txt)" -gt 5
+      - uses: actions/upload-artifact@v4
+        with:
+          name: storeplus-backup-${{ github.run_id }}
+          path: |
+            *.enc
+          retention-days: 30
