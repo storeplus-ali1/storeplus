@@ -1,6 +1,10 @@
 name: Build Android APK
 on:
   workflow_dispatch:
+    inputs:
+      ads:
+        description: 'AdMob IDs: test or real'
+        default: 'test'
   push:
     branches: [main]
 permissions:
@@ -20,13 +24,33 @@ jobs:
       - name: Prepare web files
         run: |
           mkdir www
+          cp ads.js www/ads.js
           cp -r index.html app.js common.js style.css manifest.json sw.js supabase.js logo.png icons img brands www/
+      - name: Ads config
+        run: |
+          MODE="${{ github.event.inputs.ads || 'test' }}"
+          if [ "$MODE" = "real" ]; then
+            APPID='ca-app-pub-1036618994904808~7606603130'; B='ca-app-pub-1036618994904808/6293521467'; I='ca-app-pub-1036618994904808/3360236363'; T=false
+          else
+            APPID='ca-app-pub-3940256099942544~3347511713'; B='ca-app-pub-3940256099942544/6300978111'; I='ca-app-pub-3940256099942544/1033173712'; T=true
+          fi
+          echo "window.ADS_CONFIG={test:$T,banner:'$B',interstitial:'$I'};" > www/ads-config.js
+          echo "$APPID" > admob_app_id.txt
+          echo "ASSET=StorePlus-$MODE-ads.apk" >> $GITHUB_ENV
       - run: npm install
       - run: npx cap add android
       - name: Android permissions and icon
         run: |
           M=android/app/src/main/AndroidManifest.xml
           sed -i 's#<application#<uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>\n    <application#' $M
+          python3 - <<'PY'
+          import re
+          m='android/app/src/main/AndroidManifest.xml'
+          t=open(m).read()
+          aid=open('admob_app_id.txt').read().strip()
+          t=t.replace('</application>','<meta-data android:name="com.google.android.gms.ads.APPLICATION_ID" android:value="%s"/></application>'%aid)
+          open(m,'w').write(t)
+          PY
           if [ -f google-services.json ]; then cp google-services.json android/app/google-services.json; fi
       - run: npx cap sync android
       - name: Build debug APK
@@ -36,10 +60,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          cp android/app/build/outputs/apk/debug/app-debug.apk StorePlus.apk
-          gh release delete latest --yes --cleanup-tag || true
-          gh release create latest StorePlus.apk --title "Store Plus APK" --notes "Latest build"
+          cp android/app/build/outputs/apk/debug/app-debug.apk $ASSET
+          gh release delete latest-$ASSET --yes --cleanup-tag || true
+          gh release create latest-$ASSET $ASSET --title "Store Plus APK" --notes "Latest build"
       - uses: actions/upload-artifact@v4
         with:
           name: StorePlus-apk
-          path: StorePlus.apk
+          path: ${{ env.ASSET }}
