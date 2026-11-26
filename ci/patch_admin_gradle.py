@@ -15,7 +15,10 @@ sc = '''
     }
     buildTypes {'''
 t, c3 = re.subn(r'\n\s*buildTypes\s*\{', sc, t, 1)
-t, c4 = re.subn(r'(\n\s*release\s*\{)', r'\1\n            signingConfig signingConfigs.release', t, 1)
+i = t.index('buildTypes {')
+head, tail = t[:i], t[i:]
+tail, c4 = re.subn(r'(\n\s*release\s*\{)', r'\1\n            signingConfig signingConfigs.release', tail, 1)
+t = head + tail
 print('versionCode', c1, 'versionName', c2, 'signingConfigs', c3, 'release', c4)
 assert c1 and c3 and c4
 open(p, 'w').write(t)
