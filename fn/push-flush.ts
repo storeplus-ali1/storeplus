@@ -30,8 +30,9 @@ Deno.serve(async (req) => {
     if (!u?.user) return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401, headers: cors });
     const { data: me } = await svc.from('profiles').select('role').eq('id', u.user.id).single();
     if (me?.role !== 'admin') return new Response(JSON.stringify({ error: 'forbidden' }), { status: 403, headers: cors });
-    webpush.setVapidDetails('mailto:scary01099283934@gmail.com', 'BArEwzaAmdhS4K9x6Pij_4-a7QxhL0I6_YcCh-2ZYUvQcWYsGOwHlY5wKPukVxxAXhmKoKL9JsbkTumZb-fMcnM', Deno.env.get('VAPID_PRIVATE')!);
-    const saRaw = Deno.env.get('FCM_SERVICE_ACCOUNT'); const sa = saRaw ? JSON.parse(saRaw) : null;
+    const vp = Deno.env.get('VAPID_PRIVATE');
+    if (vp) { try { webpush.setVapidDetails('mailto:scary01099283934@gmail.com', 'BArEwzaAmdhS4K9x6Pij_4-a7QxhL0I6_YcCh-2ZYUvQcWYsGOwHlY5wKPukVxxAXhmKoKL9JsbkTumZb-fMcnM', vp.trim()); } catch (e) { console.log('vapid', String(e)); } }
+    let sa: any = null; try { const saRaw = Deno.env.get('FCM_SERVICE_ACCOUNT'); sa = saRaw ? JSON.parse(saRaw) : null; } catch (e) { console.log('sa parse', String(e)); }
     const { data: ns } = await svc.from('notifications').select('*').eq('push_status', 'pending').order('id').limit(500);
     const tally: Record<string, { ok: number; fail: number }> = {};
     for (const n of ns || []) {
@@ -42,7 +43,7 @@ Deno.serve(async (req) => {
           if (s.endpoint.startsWith('fcm:')) { if (!sa) throw new Error('no FCM key'); await sendFcm(sa, s.endpoint.slice(4), n); } else await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, JSON.stringify({ title: n.title, body: n.body, url: n.url || '#/notifications', id: n.id }), { TTL: 86400 });
           ok++;
         } catch (e) {
-          fail++;
+          fail++; console.log('send fail', s.endpoint.slice(0, 12), String(e?.message || e).slice(0, 400));
           if (e?.statusCode === 404 || e?.statusCode === 410 || (e?.body || '').includes('UNREGISTERED')) await svc.from('push_subscriptions').delete().eq('id', s.id);
         }
       }
