@@ -105,4 +105,6 @@ input.in:focus,textarea.in:focus{border-color:#00c8ff}
 .lc.w span{background:#fff!important;border-color:#fff!important;width:auto!important;min-width:32px;padding:0 7px;border-radius:16px!important}.lc img.fc{filter:none!important;width:auto!important;height:18px!important;max-width:46px}
 .hero .logo{height:52px!important}.chips{display:none!important}
 
-body.ad #app{padding-bottom:200px}
+body.ad #app{padding-bottom:22px}
+
+#sfab{position:fixed;left:14px;bottom:22px;width:50px;height:50px;border-radius:50%;background:linear-gradient(135deg,#0a3cff,#00c8ff);color:#fff;align-items:center;justify-content:center;box-shadow:0 0 18px #00b7ffaa;z-index:40;border:2px solid #050b1c}

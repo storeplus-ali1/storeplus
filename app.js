@@ -17,6 +17,11 @@ function navBar(active) {
   <a href="#/notifications" class="${active === 'notif' ? 'on' : ''}">${ic('bell')}<span>الإشعارات</span></a>
   <a href="#/account" class="${active === 'account' ? 'on' : ''}">${ic('user')}<span>حسابي</span></a>`;
 }
+function supportFab(show) {
+  let f = document.getElementById('sfab');
+  if (!f) { f = document.createElement('a'); f.id = 'sfab'; f.target = '_blank'; f.rel = 'noopener'; f.setAttribute('aria-label', 'خدمة العملاء'); f.innerHTML = ic('support', 26); document.body.appendChild(f); }
+  f.href = 'https://wa.me/201064774759?text=' + encodeURIComponent('مرحبًا، أحتاج مساعدة في متجر بلس'); f.style.display = show ? 'flex' : 'none';
+}
 function waLink(orderNo) {
   const n = (SETTINGS.support_whatsapp || '201064774759').replace(/\D/g, '');
   const msg = orderNo ? `مرحبًا، أريد الاستفسار عن الطلب رقم ${orderNo}` : 'مرحبًا، أحتاج مساعدة في متجر بلس';
@@ -40,6 +45,7 @@ async function refreshUnread() {
 // ---------- auth ----------
 const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent), isStandalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone;
 function viewAuth(mode = (location.hash === '#/signup' ? 'signup' : 'login')) {
+  supportFab(true);
   $('#nav').hidden = true;
   app.innerHTML = `<div class="auth"><div class="hero"><img class="logo" src="logo.png" alt=""><h1>أهلاً بك في متجر بلس</h1><div class="sub">خدماتك الرقمية بأفضل الأسعار، وتتبع طلبك لحظة بلحظة</div>
   <div class="mq"><div class="tr"><div class="lc" style="--c:#e50914" title="Netflix"><span><img class="" src="brands/netflix.svg" alt=""></span></div><div class="lc" style="--c:#00a8e1" title="Prime"><span><img class="" src="brands/primevideo.svg" alt=""></span></div><div class="lc" style="--c:#00c389" title="Shahid"><span><img class="" src="brands/shahid.png" alt=""></span></div><div class="lc" style="--c:#7b61ff" title="Gemini"><span><img class="" src="brands/googlegemini.svg" alt=""></span></div><div class="lc" style="--c:#9fb0d8" title="CapCut"><span><img class="" src="brands/capcut.png" alt=""></span></div><div class="lc w" style="--c:#fff" title="Canva"><span><img class="fc" src="brands/c-canva.svg" alt=""></span></div><div class="lc w" style="--c:#fff" title="WE"><span><img class="fc" src="brands/c-we.svg" alt=""></span></div><div class="lc" style="--c:#e60000" title="Vodafone"><span><img class="" src="brands/vodafone.svg" alt=""></span></div><div class="lc w" style="--c:#fff" title="Orange"><span><img class="fc" src="brands/c-orange.svg" alt=""></span></div><div class="lc w" style="--c:#fff" title="Etisalat"><span><img class="fc" src="brands/c-etisalat.svg" alt=""></span></div><div class="lc" style="--c:#f2a900" title="PUBG"><span><img class="" src="brands/pubg.svg" alt=""></span></div><div class="lc" style="--c:#2f7bff" title="eFootball"><span><img class="" src="brands/konami.svg" alt=""></span></div><div class="lc" style="--c:#00d2ff" title="EA FC"><span><img class="" src="brands/ea.svg" alt=""></span></div><div class="lc" style="--c:#ff6a00" title="Free Fire"><span><img class="" src="brands/freefire.png" alt=""></span></div><div class="lc" style="--c:#8aa0b8" title="CoD M"><span><img class="" src="brands/codm.png" alt=""></span></div><div class="lc" style="--c:#e50914" title="Netflix"><span><img class="" src="brands/netflix.svg" alt=""></span></div><div class="lc" style="--c:#00a8e1" title="Prime"><span><img class="" src="brands/primevideo.svg" alt=""></span></div><div class="lc" style="--c:#00c389" title="Shahid"><span><img class="" src="brands/shahid.png" alt=""></span></div><div class="lc" style="--c:#7b61ff" title="Gemini"><span><img class="" src="brands/googlegemini.svg" alt=""></span></div><div class="lc" style="--c:#9fb0d8" title="CapCut"><span><img class="" src="brands/capcut.png" alt=""></span></div><div class="lc w" style="--c:#fff" title="Canva"><span><img class="fc" src="brands/c-canva.svg" alt=""></span></div><div class="lc w" style="--c:#fff" title="WE"><span><img class="fc" src="brands/c-we.svg" alt=""></span></div><div class="lc" style="--c:#e60000" title="Vodafone"><span><img class="" src="brands/vodafone.svg" alt=""></span></div><div class="lc w" style="--c:#fff" title="Orange"><span><img class="fc" src="brands/c-orange.svg" alt=""></span></div><div class="lc w" style="--c:#fff" title="Etisalat"><span><img class="fc" src="brands/c-etisalat.svg" alt=""></span></div><div class="lc" style="--c:#f2a900" title="PUBG"><span><img class="" src="brands/pubg.svg" alt=""></span></div><div class="lc" style="--c:#2f7bff" title="eFootball"><span><img class="" src="brands/konami.svg" alt=""></span></div><div class="lc" style="--c:#00d2ff" title="EA FC"><span><img class="" src="brands/ea.svg" alt=""></span></div><div class="lc" style="--c:#ff6a00" title="Free Fire"><span><img class="" src="brands/freefire.png" alt=""></span></div><div class="lc" style="--c:#8aa0b8" title="CoD M"><span><img class="" src="brands/codm.png" alt=""></span></div></div></div>
@@ -201,6 +207,7 @@ function viewAccount() {
 
 // ---------- router ----------
 async function route() {
+  supportFab(false);
   if (!ME) return;
   const h = location.hash.replace(/^#/, '') || '/'; const p = h.split('/').filter(Boolean);
   window.scrollTo(0, 0);
