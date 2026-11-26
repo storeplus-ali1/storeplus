@@ -17,7 +17,7 @@ Deno.serve(async (req) => {
     if (!ps || ps.length !== 1) return R({ error: 'not_found' }, 404);
     const { error } = await svc.auth.admin.updateUserById(ps[0].id, { password });
     if (error) return R({ error: 'failed' }, 500);
-    await svc.from('audit_log').insert({ actor_id: u.user.id, action: 'customer_password_reset', details: { customer: ps[0].id } }).then(() => {}, () => {});
+    await svc.from('audit_log').insert({ actor: u.user.id, action: 'customer_password_reset', details: { customer: ps[0].id } }).then(() => {}, () => {});
     return R({ ok: true });
   } catch (_e) { return R({ error: 'failed' }, 500); }
 });
