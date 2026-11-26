@@ -32,7 +32,7 @@ Deno.serve(async (req) => {
     if (me?.role !== 'admin') return new Response(JSON.stringify({ error: 'forbidden' }), { status: 403, headers: cors });
     const vp = Deno.env.get('VAPID_PRIVATE');
     if (vp) { try { webpush.setVapidDetails('mailto:scary01099283934@gmail.com', 'BArEwzaAmdhS4K9x6Pij_4-a7QxhL0I6_YcCh-2ZYUvQcWYsGOwHlY5wKPukVxxAXhmKoKL9JsbkTumZb-fMcnM', vp.trim()); } catch (e) { console.log('vapid', String(e)); } }
-    let sa: any = null; try { const saRaw = Deno.env.get('FCM_SERVICE_ACCOUNT'); sa = saRaw ? JSON.parse(saRaw) : null; } catch (e) { console.log('sa parse', String(e), 'len', (Deno.env.get('FCM_SERVICE_ACCOUNT')||'').length, JSON.stringify((Deno.env.get('FCM_SERVICE_ACCOUNT')||'').slice(0,14)), JSON.stringify((Deno.env.get('FCM_SERVICE_ACCOUNT')||'').slice(-4))); }
+    let sa: any = null; try { let r = (Deno.env.get('FCM_SERVICE_ACCOUNT') || '').trim(); if (r && !r.startsWith('{')) r = '{' + r; if (r && !r.endsWith('}')) r = r + '}'; sa = r ? JSON.parse(r.replace(/\n/g, (m: string, o: number) => m)) : null; } catch (e) { console.log('sa parse', String(e)); }
     const { data: ns } = await svc.from('notifications').select('*').eq('push_status', 'pending').order('id').limit(500);
     const tally: Record<string, { ok: number; fail: number }> = {};
     for (const n of ns || []) {
