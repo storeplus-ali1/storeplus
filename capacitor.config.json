@@ -1,0 +1,7 @@
+{
+  "appId": "com.storeplus.app",
+  "appName": "متجر بلس",
+  "webDir": "www",
+  "backgroundColor": "#050a1f",
+  "android": { "allowMixedContent": false }
+}
