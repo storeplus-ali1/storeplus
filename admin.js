@@ -1,0 +1,194 @@
+// Store Plus admin panel
+const app = $('#app');
+const ADMIN_EMAIL = 'scary01099283934+admin@gmail.com'; // login username "Ali Henish" maps to this
+let ME = null, CATS = [], SVCS = [], PKGS = [];
+const TYPES = { new_offer: 'عرض جديد', new_service: 'خدمة جديدة', discount: 'خصم', important: 'تنبيه مهم' };
+const ACTS = { order_created: 'إنشاء الطلب', proof_submitted: 'رفع إثبات الدفع', payment_confirmed: 'تأكيد الدفع', payment_rejected: 'رفض إثبات الدفع', status_in_progress: 'بدء التنفيذ', status_completed: 'إكمال الطلب', status_cancelled: 'إلغاء الطلب' };
+function nav(a) {
+  const t = [['dash', 'الرئيسية', 'chart'], ['orders', 'الطلبات', 'orders'], ['services', 'الخدمات', 'tag'], ['customers', 'العملاء', 'users'], ['notify', 'الإشعارات', 'bell'], ['settings', 'الإعدادات', 'gear']];
+  $('#nav').hidden = !ME;
+  $('#nav').innerHTML = t.map(([k, l, i]) => `<a href="#/${k}" class="${a === k ? 'on' : ''}">${ic(i)}<span>${l}</span></a>`).join('');
+}
+const head = (t, back) => `<div class="hd">${back ? `<a class="ib" href="${back}">${ic('back')}</a>` : ''}<h1>${t}</h1></div>`;
+const FN = SUPABASE_URL + '/functions/v1/push-flush';
+async function flushPush() {
+  try { const { data: { session } } = await SB.auth.getSession(); const r = await fetch(FN, { method: 'POST', headers: { Authorization: 'Bearer ' + session.access_token, apikey: SUPABASE_KEY, 'Content-Type': 'application/json' }, body: '{}' }); return r.ok; } catch { return false; }
+}
+const loading = () => (app.innerHTML = '<div class="empty">جاري التحميل...</div>');
+
+function viewLogin() {
+  $('#nav').hidden = true;
+  app.innerHTML = `<div class="auth"><img class="logo" src="logo.png"><h1>لوحة إدارة متجر بلس</h1><p class="sub">دخول المشرف فقط</p>
+  <form id="f" style="margin-top:18px"><label class="lbl">اسم المستخدم</label><input class="in" name="u" value="Ali Henish" autocomplete="username">
+  <label class="lbl">كلمة المرور</label><input class="in ltr" type="password" name="p" autocomplete="current-password">
+  <button class="btn" style="width:100%;margin-top:18px">دخول</button></form></div>`;
+  $('#f').onsubmit = async (e) => {
+    e.preventDefault();
+    const email = e.target.u.value.trim() === 'Ali Henish' ? ADMIN_EMAIL : e.target.u.value.trim();
+    const { error } = await SB.auth.signInWithPassword({ email, password: e.target.p.value });
+    if (error) return toast('بيانات الدخول غير صحيحة', true);
+    boot();
+  };
+}
+async function loadCat() {
+  const [c, s, p] = await Promise.all([SB.from('categories').select('*').order('sort'), SB.from('services').select('*').order('id'), SB.from('packages').select('*').order('sort')]);
+  CATS = c.data || []; SVCS = s.data || []; PKGS = p.data || [];
+}
+async function boot() {
+  const p = await myProfile();
+  if (!p) return viewLogin();
+  if (p.role !== 'admin') { await SB.auth.signOut(); viewLogin(); return toast('هذا الحساب ليس حساب مشرف', true); }
+  ME = p; await loadCat(); route();
+}
+
+async function vDash() {
+  nav('dash'); loading();
+  const { data: o } = await SB.from('orders').select('id,order_no,status,total,created_at,service_name_ar,package_name_ar').order('created_at', { ascending: false });
+  const { count: cu } = await SB.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'customer');
+  const L = o || [], today = new Date().toDateString();
+  const c = (f) => L.filter(f).length;
+  const rev = L.filter((x) => ['payment_confirmed', 'in_progress', 'completed'].includes(x.status)).reduce((a, x) => a + Number(x.total), 0);
+  app.innerHTML = `<div class="top"><button class="ib" id="out">${ic('out')}</button><img class="logo" src="logo.png"></div><h1>لوحة التحكم</h1><p class="sub">أهلاً ${esc(ME.full_name)}</p>
+  <div class="stats" style="margin-top:12px">
+  <div class="st"><small>طلبات اليوم</small><b>${num(c((x) => new Date(x.created_at).toDateString() === today))}</b></div>
+  <div class="st w"><small>تنتظر مراجعة الدفع</small><b>${num(c((x) => x.status === 'proof_submitted'))}</b></div>
+  <div class="st"><small>جاري التنفيذ</small><b>${num(c((x) => ['payment_confirmed', 'in_progress'].includes(x.status)))}</b></div>
+  <div class="st g"><small>مكتملة</small><b>${num(c((x) => x.status === 'completed'))}</b></div>
+  <div class="st"><small>إجمالي المبيعات المؤكدة</small><b style="font-size:16px">${money(rev)}</b></div>
+  <div class="st"><small>العملاء</small><b>${num(cu || 0)}</b></div></div>
+  <div class="sec"><b>أحدث الطلبات</b><a href="#/orders">عرض الكل</a></div>
+  ${L.slice(0, 5).map(orderRow).join('') || '<div class="empty">لا توجد طلبات بعد</div>'}
+  <div class="sec"><b>سجل العمليات</b><a href="#/audit">عرض الكل</a></div>`;
+  $('#out').onclick = async () => { await SB.auth.signOut(); ME = null; viewLogin(); };
+}
+const orderRow = (o) => `<a class="row" href="#/order/${o.id}"><div class="t"><b>${num(o.order_no)}</b><em>${esc(o.service_name_ar)} - ${esc(o.package_name_ar)}</em></div><div class="p">${money(o.total)}<br>${badge(o.status)}</div></a>`;
+
+let OFILT = 'all';
+async function vOrders() {
+  nav('orders'); loading();
+  const { data } = await SB.from('orders').select('id,order_no,status,total,created_at,service_name_ar,package_name_ar').order('created_at', { ascending: false });
+  const fl = [['all', 'الكل'], ['proof_submitted', 'مراجعة الدفع'], ['awaiting_payment', 'بانتظار الدفع'], ['payment_confirmed', 'تم تأكيد الدفع'], ['in_progress', 'جاري التنفيذ'], ['completed', 'مكتمل'], ['cancelled', 'ملغي']];
+  const draw = () => {
+    const L = (data || []).filter((o) => OFILT === 'all' || o.status === OFILT);
+    $('#ol').innerHTML = L.map(orderRow).join('') || '<div class="empty">لا توجد طلبات</div>';
+  };
+  app.innerHTML = `${head('الطلبات')}<div class="search">${ic('search', 18)}<input id="q" placeholder="ابحث برقم الطلب"></div><div class="flt">${fl.map(([k, l]) => `<button data-k="${k}" class="${OFILT === k ? 'on' : ''}">${l}</button>`).join('')}</div><div id="ol"></div>`;
+  $$('.flt button').forEach((b) => (b.onclick = () => { OFILT = b.dataset.k; $$('.flt button').forEach((x) => x.classList.toggle('on', x === b)); draw(); }));
+  $('#q').oninput = (e) => { const v = e.target.value.trim().toLowerCase(); $('#ol').innerHTML = (data || []).filter((o) => o.order_no.toLowerCase().includes(v)).map(orderRow).join('') || '<div class="empty">لا نتائج</div>'; };
+  draw();
+}
+async function vOrder(id) {
+  nav('orders'); loading();
+  const { data: o } = await SB.from('orders').select('*').eq('id', id).single();
+  if (!o) return (location.hash = '#/orders');
+  const [{ data: u }, { data: lg }] = await Promise.all([SB.from('profiles').select('full_name,phone,email').eq('id', o.user_id).single(), SB.from('audit_log').select('*').eq('order_id', id).order('created_at', { ascending: false })]);
+  let rurl = '';
+  if (o.receipt_path) { const r = await SB.storage.from('receipts').createSignedUrl(o.receipt_path, 600); rurl = r.data?.signedUrl || ''; }
+  const fv = Object.entries(o.field_values || {});
+  const act = [];
+  if (o.status === 'proof_submitted') act.push(`<div class="sw"><button class="btn" id="ok">تأكيد الدفع</button><button class="btn r" id="no">رفض الإثبات</button></div>`);
+  if (o.status === 'payment_confirmed') act.push(`<button class="btn" id="st1" data-s="in_progress">بدء التنفيذ</button>`);
+  if (['payment_confirmed', 'in_progress'].includes(o.status)) act.push(`<button class="btn" id="st2" data-s="completed" style="margin-top:8px">تم التنفيذ</button>`);
+  if (!['completed', 'cancelled'].includes(o.status)) act.push(`<button class="btn r" id="st3" data-s="cancelled" style="margin-top:8px">إلغاء الطلب</button>`);
+  app.innerHTML = `${head('تفاصيل الطلب', '#/orders')}
+  <div class="card"><div class="kv"><span>رقم الطلب</span><span>${num(o.order_no)}</span></div><div class="kv"><span>الحالة</span><span>${badge(o.status)}</span></div>
+  <div class="kv"><span>الخدمة</span><span>${esc(o.service_name_ar)}</span></div><div class="kv"><span>الباقة</span><span>${esc(o.package_name_ar)}</span></div>
+  <div class="kv"><span>الإجمالي</span><span>${money(o.total)}</span></div><div class="kv"><span>تاريخ الطلب</span><span>${num(dt(o.created_at))}</span></div>
+  ${o.due_at ? `<div class="kv"><span>موعد التنفيذ المتوقع</span><span>${num(dt(o.due_at))}</span></div>` : ''}</div>
+  <div class="card"><b>العميل</b><div class="kv"><span>الاسم</span><span>${esc(u?.full_name)}</span></div><div class="kv"><span>الهاتف</span><span>${num(u?.phone)}</span></div><div class="kv"><span>البريد</span><span class="ltr">${esc(u?.email)}</span></div></div>
+  ${fv.length ? `<div class="card"><b>بيانات الطلب</b>${fv.map(([k, v]) => `<div class="kv"><span>${esc(k)}</span><span class="ltr">${esc(v)}</span></div>`).join('')}</div>` : ''}
+  <div class="card"><b>إثبات الدفع</b>${rurl ? `<a href="${esc(rurl)}" target="_blank"><img class="recv" src="${esc(rurl)}" style="margin-top:8px"></a><div class="kv"><span>رقم العملية</span><span>${num(o.payment_ref || '-')}</span></div>` : '<div class="empty">لم يرفع العميل إثبات الدفع بعد</div>'}</div>
+  <div class="card"><b>سجل الطلب</b>${(lg || []).map((l) => `<div class="kv"><span>${ACTS[l.action] || l.action}</span><span>${num(dt(l.created_at))}</span></div>`).join('') || '<div class="empty">لا توجد عمليات</div>'}</div>
+  ${act.join('')}`;
+  const run = async (fn, m) => { const { error } = await fn(); if (error) return toast(error.message, true); toast(m); flushPush(); vOrder(id); };
+  if ($('#ok')) $('#ok').onclick = () => confirm('تأكيد استلام المبلغ وبدء مدة الـ 24 ساعة؟') && run(() => SB.rpc('admin_confirm_payment', { p_order: id }), 'تم تأكيد الدفع');
+  if ($('#no')) $('#no').onclick = () => { const n = prompt('سبب الرفض (يظهر للعميل)'); if (n !== null) run(() => SB.rpc('admin_reject_payment', { p_order: id, p_note: n }), 'تم رفض الإثبات'); };
+  ['st1', 'st2', 'st3'].forEach((k) => $('#' + k) && ($('#' + k).onclick = () => confirm('تأكيد تغيير الحالة؟') && run(() => SB.rpc('admin_set_status', { p_order: id, p_status: $('#' + k).dataset.s }), 'تم تحديث الحالة')));
+}
+
+async function vServices() {
+  nav('services'); await loadCat();
+  app.innerHTML = `${head('الخدمات والباقات')}<button class="btn s" id="addS" style="margin-bottom:12px">${ic('plus', 18)} خدمة جديدة</button>` + SVCS.map((s) => `<a class="row" href="#/svc/${s.id}"><img src="${esc(s.image || 'logo.png')}"><div class="t"><b>${esc(s.name_ar)}</b><em>${esc(s.name_en)} - ${num(PKGS.filter((p) => p.service_id === s.id).length)} باقات</em></div><div class="p">${s.active ? '<span class="badge g">ظاهرة</span>' : '<span class="badge r">مخفية</span>'}</div></a>`).join('');
+  $('#addS').onclick = async () => { const n = prompt('اسم الخدمة بالعربي'); if (!n) return; const e = prompt('الاسم بالإنجليزي') || n; const { data, error } = await SB.from('services').insert({ name_ar: n, name_en: e, category_id: CATS[0]?.id, active: false }).select().single(); if (error) return toast(error.message, true); location.hash = '#/svc/' + data.id; };
+}
+async function vSvc(id) {
+  nav('services'); await loadCat();
+  const s = SVCS.find((x) => x.id == id); if (!s) return (location.hash = '#/services');
+  const ps = PKGS.filter((p) => p.service_id == id);
+  app.innerHTML = `${head(esc(s.name_ar), '#/services')}
+  <div class="card"><label class="lbl">الاسم بالعربي</label><input class="in" id="na" value="${esc(s.name_ar)}"><label class="lbl">الاسم بالإنجليزي</label><input class="in ltr" id="ne" value="${esc(s.name_en)}">
+  <label class="lbl">الوصف</label><textarea class="in" id="ds">${esc(s.description_ar)}</textarea>
+  <label class="lbl">القسم</label><select class="in" id="ct">${CATS.map((c) => `<option value="${c.id}" ${c.id === s.category_id ? 'selected' : ''}>${esc(c.name_ar)}</option>`).join('')}</select>
+  <label class="chk"><input type="checkbox" id="ac" ${s.active ? 'checked' : ''}> الخدمة ظاهرة للعملاء</label>
+  <label class="chk"><input type="checkbox" id="ft" ${s.featured ? 'checked' : ''}> ضمن العروض المميزة</label>
+  <button class="btn" id="sv" style="margin-top:12px">حفظ</button></div>
+  <div class="sec"><b>الباقات</b></div>
+  ${ps.map((p) => `<div class="card" data-p="${p.id}"><input class="in" value="${esc(p.name_ar)}" data-f="name_ar"><div class="sw" style="margin-top:8px"><input class="in ltr" type="number" value="${p.price}" data-f="price"><input class="in ltr" type="number" placeholder="السعر القديم" value="${p.old_price ?? ''}" data-f="old_price"></div>
+  <label class="chk"><input type="checkbox" data-f="active" ${p.active ? 'checked' : ''}> ظاهرة</label><button class="btn s o psv">حفظ الباقة</button></div>`).join('')}
+  <button class="btn o" id="addP">${ic('plus', 18)} باقة جديدة</button>`;
+  $('#sv').onclick = async () => { const { error } = await SB.from('services').update({ name_ar: $('#na').value, name_en: $('#ne').value, description_ar: $('#ds').value, category_id: +$('#ct').value, active: $('#ac').checked, featured: $('#ft').checked }).eq('id', id); toast(error ? error.message : 'تم الحفظ', !!error); };
+  $$('.psv').forEach((b) => (b.onclick = async () => { const c = b.closest('[data-p]'), v = {}; $$('[data-f]', c).forEach((i) => (v[i.dataset.f] = i.type === 'checkbox' ? i.checked : i.dataset.f === 'name_ar' ? i.value : i.value === '' ? null : +i.value)); const { error } = await SB.from('packages').update(v).eq('id', c.dataset.p); toast(error ? error.message : 'تم حفظ الباقة', !!error); }));
+  $('#addP').onclick = async () => { const n = prompt('اسم الباقة'); const pr = +prompt('السعر بالجنيه المصري'); if (!n || !(pr >= 0)) return; const { error } = await SB.from('packages').insert({ service_id: +id, name_ar: n, price: pr }); if (error) return toast(error.message, true); vSvc(id); };
+}
+
+async function vCustomers() {
+  nav('customers'); loading();
+  const { data } = await SB.from('profiles').select('*').eq('role', 'customer').order('created_at', { ascending: false });
+  app.innerHTML = `${head('العملاء')}<p class="sub" style="margin-bottom:10px">لا يملك أي مشرف أو موظف خدمة عملاء إمكانية تغيير كلمة مرور العميل. الاستعادة تتم فقط عبر بريده الإلكتروني الموثق.</p>` + ((data || []).map((u) => `<div class="row"><div class="t"><b>${esc(u.full_name)}</b><em>${num(u.phone)} - <span class="ltr">${esc(u.email)}</span></em></div><div class="p">${num(dt(u.created_at).slice(0, 10))}</div></div>`).join('') || '<div class="empty">لا يوجد عملاء</div>');
+}
+
+async function vNotify() {
+  nav('notify');
+  const [{ data: logs }, { data: cs }] = await Promise.all([SB.from('broadcasts').select('*').order('created_at', { ascending: false }).limit(30), SB.from('profiles').select('id,full_name,phone').eq('role', 'customer').order('full_name')]);
+  app.innerHTML = `${head('مركز الإشعارات')}
+  <div class="card"><h2>إرسال إشعار جديد</h2>
+  <label class="lbl">عنوان الإشعار</label><input class="in" id="t" maxlength="60">
+  <label class="lbl">نص الإشعار</label><textarea class="in" id="b" maxlength="200"></textarea>
+  <label class="lbl">نوع الإشعار</label><select class="in" id="ty">${Object.entries(TYPES).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select>
+  <label class="lbl">المستلمون</label><select class="in" id="rc"><option value="all">كل العملاء</option><option value="sel">عملاء محددون</option></select>
+  <div id="pick" hidden style="max-height:180px;overflow:auto;margin-top:8px">${(cs || []).map((c) => `<label class="chk"><input type="checkbox" value="${c.id}"> ${esc(c.full_name)} <span class="sub">${num(c.phone)}</span></label>`).join('') || '<div class="empty">لا يوجد عملاء</div>'}</div>
+  <label class="lbl">الصفحة التي تفتح عند الضغط</label><select class="in" id="ur"><option value="#/">الرئيسية</option><option value="#/notifications">الإشعارات</option><option value="#/orders">طلباتي</option>${SVCS.filter((s) => s.active).map((s) => `<option value="#/service/${s.id}">خدمة: ${esc(s.name_ar)}</option>`).join('')}</select>
+  <label class="lbl">معاينة</label><div class="pv"><img src="icons/icon-192.png"><div><b id="pt">عنوان الإشعار</b><p id="pb">نص الإشعار</p></div></div>
+  <button class="btn" id="go" style="margin-top:14px">${ic('send', 18)} مراجعة وإرسال</button></div>
+  <div class="sec"><b>سجل الإشعارات المرسلة</b></div>
+  ${(logs || []).map((l) => `<div class="card"><b>${esc(l.title)}</b><p class="sub">${esc(l.body)}</p><div class="kv"><span>النوع</span><span>${TYPES[l.type] || l.type}</span></div><div class="kv"><span>التاريخ</span><span>${num(dt(l.created_at))}</span></div><div class="kv"><span>عدد المستلمين</span><span>${num(l.recipients)}</span></div><div class="kv"><span>الحالة</span><span><span class="badge ${l.push_status === 'failed' ? 'r' : 'g'}">${l.push_status === 'failed' ? 'فشل (لا توجد أجهزة مفعّلة أو رُفضت)' : l.push_status === 'accepted' ? 'قبلتها خدمة الإشعارات (' + l.push_ok + ' جهاز، فشل ' + l.push_failed + ')' : 'تم الحفظ - بانتظار الإرسال'}</span></span></div></div>`).join('') || '<div class="empty">لم يتم إرسال إشعارات بعد</div>'}
+  <p class="sub">ملاحظة: الحالة تعني أن خدمة الإشعارات قبلت الرسالة أو رفضتها، ولا تعني أن العميل فتحها. على الآيفون تصل الإشعارات فقط بعد إضافة التطبيق للشاشة الرئيسية.</p>`;
+  $('#t').oninput = () => ($('#pt').textContent = $('#t').value || 'عنوان الإشعار');
+  $('#b').oninput = () => ($('#pb').textContent = $('#b').value || 'نص الإشعار');
+  $('#rc').onchange = () => ($('#pick').hidden = $('#rc').value !== 'sel');
+  $('#go').onclick = async () => {
+    const t = $('#t').value.trim(), b = $('#b').value.trim(); if (!t || !b) return toast('اكتب العنوان والنص', true);
+    const users = $('#rc').value === 'sel' ? $$('#pick input:checked').map((i) => i.value) : null;
+    if (users && !users.length) return toast('اختر عميلًا واحدًا على الأقل', true);
+    if (!confirm(`سيتم إرسال "${t}" إلى ${users ? users.length + ' عميل' : 'كل العملاء'}. تأكيد الإرسال؟`)) return;
+    const { error } = await SB.rpc('admin_broadcast', { p_title: t, p_body: b, p_type: $('#ty').value, p_users: users, p_url: $('#ur').value });
+    if (error) return toast(error.message, true); toast('جاري إرسال الإشعار...'); await flushPush(); toast('تم إرسال الإشعار'); vNotify();
+  };
+}
+
+async function vSettings() {
+  nav('settings'); const S = await getSettings();
+  const f = [['wallet_number', 'رقم محفظة فودافون كاش'], ['support_whatsapp', 'رقم واتساب خدمة العملاء (بالصيغة الدولية)'], ['execution_hours', 'مدة التنفيذ بالساعات']];
+  app.innerHTML = `${head('الإعدادات')}<div class="card">${f.map(([k, l]) => `<label class="lbl">${l}</label><input class="in ltr" data-k="${k}" value="${esc(S[k])}">`).join('')}<button class="btn" id="sv" style="margin-top:14px">حفظ الإعدادات</button></div>
+  <a class="btn o" href="#/audit" style="margin-bottom:10px">سجل العمليات</a><button class="btn r" id="out">تسجيل الخروج</button>`;
+  $('#sv').onclick = async () => { for (const i of $$('[data-k]')) { const { error } = await SB.from('settings').upsert({ key: i.dataset.k, value: i.value.trim(), updated_at: new Date().toISOString() }); if (error) return toast(error.message, true); } toast('تم حفظ الإعدادات'); };
+  $('#out').onclick = async () => { await SB.auth.signOut(); ME = null; viewLogin(); };
+}
+async function vAudit() {
+  nav('settings'); loading();
+  const { data } = await SB.from('audit_log').select('*').order('created_at', { ascending: false }).limit(100);
+  const ids = [...new Set((data || []).map((x) => x.order_id).filter(Boolean))];
+  const { data: os } = ids.length ? await SB.from('orders').select('id,order_no').in('id', ids) : { data: [] };
+  const m = Object.fromEntries((os || []).map((o) => [o.id, o.order_no]));
+  app.innerHTML = `${head('سجل العمليات', '#/settings')}` + ((data || []).map((l) => `<div class="card"><b>${ACTS[l.action] || l.action}</b><div class="kv"><span>الطلب</span><span>${num(m[l.order_id] || '-')}</span></div><div class="kv"><span>الوقت</span><span>${num(dt(l.created_at))}</span></div></div>`).join('') || '<div class="empty">لا توجد عمليات بعد</div>');
+}
+
+function route() {
+  if (!ME) return viewLogin();
+  const p = (location.hash.replace(/^#/, '') || '/dash').split('/').filter(Boolean);
+  const k = p[0] || 'dash';
+  ({ dash: vDash, orders: vOrders, order: () => vOrder(p[1]), services: vServices, svc: () => vSvc(p[1]), customers: vCustomers, notify: vNotify, settings: vSettings, audit: vAudit }[k] || vDash)();
+}
+window.addEventListener('hashchange', route);
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+boot();
