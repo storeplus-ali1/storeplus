@@ -218,6 +218,7 @@ async function route() {
   } catch (e) { console.error(e); app.innerHTML = '<div class="empty">حدث خطأ، حاول مرة أخرى</div>'; }
 }
 async function boot() {
+  try { const PN0 = window.Capacitor && Capacitor.Plugins && Capacitor.Plugins.PushNotifications; if (PN0 && Capacitor.isNativePlatform && Capacitor.isNativePlatform()) { const st0 = await PN0.checkPermissions(); if (st0.receive !== 'granted') await PN0.requestPermissions(); } } catch (e) { console.error(e); }
   const { data: { session } } = await SB.auth.getSession();
   if (!session) { ME = null; return viewAuth(); }
   ME = await myProfile();
