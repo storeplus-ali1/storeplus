@@ -134,7 +134,13 @@ async function vSvc(id) {
 async function vCustomers() {
   nav('customers'); loading();
   const { data } = await SB.from('profiles').select('*').eq('role', 'customer').order('created_at', { ascending: false });
-  app.innerHTML = `${head('العملاء')}<p class="sub" style="margin-bottom:10px">لا يملك أي مشرف أو موظف خدمة عملاء إمكانية تغيير كلمة مرور العميل. الاستعادة تتم فقط عبر بريده الإلكتروني الموثق.</p>` + ((data || []).map((u) => `<div class="row"><div class="t"><b>${esc(u.full_name)}</b><em>${num(u.phone)} - <span class="ltr">${esc(u.email)}</span></em></div><div class="p">${num(dt(u.created_at).slice(0, 10))}</div></div>`).join('') || '<div class="empty">لا يوجد عملاء</div>');
+  app.innerHTML = `${head('العملاء')}<div class="card"><h2>تغيير كلمة مرور عميل</h2><label class="lbl">رقم هاتف العميل</label><input class="in ltr" id="rp" inputmode="numeric" placeholder="01XXXXXXXXX"><label class="lbl">كلمة المرور الجديدة (8 أحرف على الأقل)</label><input class="in ltr" id="rw" minlength="8"><div style="height:12px"></div><button class="btn" id="rb">حفظ كلمة المرور الجديدة</button></div>` + ((data || []).map((u) => `<div class="row"><div class="t"><b>${esc(u.full_name)}</b><em><span class="ltr">${num(u.phone)}</span></em></div><div class="p">${num(dt(u.created_at).slice(0, 10))}</div></div>`).join('') || '<div class="empty">لا يوجد عملاء</div>');
+  $('#rb').onclick = async () => {
+    const ph = $('#rp').value.trim(), pw = $('#rw').value; if (ph.replace(/\D/g, '').length < 10 || pw.length < 8) return toast('أدخل رقم الهاتف وكلمة مرور من 8 أحرف على الأقل', true);
+    if (!confirm('تغيير كلمة مرور العميل صاحب الرقم ' + ph + '؟')) return;
+    try { const { data: { session } } = await SB.auth.getSession(); const r = await fetch(SUPABASE_URL + '/functions/v1/admin-set-password', { method: 'POST', headers: { Authorization: 'Bearer ' + session.access_token, apikey: SUPABASE_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: ph, password: pw }) }); const j = await r.json();
+      if (!r.ok) return toast(j.error === 'not_found' ? 'لا يوجد عميل بهذا الرقم' : 'تعذر تغيير كلمة المرور', true); $('#rw').value = ''; toast('تم تغيير كلمة المرور. أبلغ العميل بها'); } catch (e) { toast('تعذر الاتصال', true); }
+  };
 }
 
 async function vNotify() {
