@@ -3,7 +3,7 @@ const app = $('#app');
 const ADMIN_EMAIL = 'scary01099283934+admin@gmail.com'; // login username "Ali Henish" maps to this
 let ME = null, CATS = [], SVCS = [], PKGS = [];
 const TYPES = { new_offer: 'عرض جديد', new_service: 'خدمة جديدة', discount: 'خصم', important: 'تنبيه مهم' };
-const ACTS = { order_created: 'إنشاء الطلب', proof_submitted: 'رفع إثبات الدفع', payment_confirmed: 'تأكيد الدفع', payment_rejected: 'رفض إثبات الدفع', status_in_progress: 'بدء التنفيذ', status_completed: 'إكمال الطلب', status_cancelled: 'إلغاء الطلب' };
+const ACTS = { order_created: 'إنشاء الطلب', proof_submitted: 'رفع إثبات الدفع', payment_confirmed: 'تأكيد الدفع', payment_rejected: 'رفض إثبات الدفع', status_in_progress: 'بدء التنفيذ', status_completed: 'إكمال الطلب', status_cancelled: 'إلغاء الطلب', order_deleted: 'حذف طلب', broadcast_deleted: 'حذف إشعار', notifications_cleared: 'مسح كل الإشعارات', customer_banned: 'حظر عميل', customer_unbanned: 'إلغاء حظر عميل', customer_deleted: 'حذف عميل', customer_password_reset: 'تغيير كلمة مرور عميل' };
 function nav(a) {
   const t = [['dash', 'الرئيسية', 'chart'], ['orders', 'الطلبات', 'orders'], ['services', 'الخدمات', 'tag'], ['customers', 'العملاء', 'users'], ['notify', 'الإشعارات', 'bell'], ['settings', 'الإعدادات', 'gear']];
   $('#nav').hidden = !ME;
@@ -99,7 +99,8 @@ async function vOrder(id) {
   ${fv.length ? `<div class="card"><b>بيانات الطلب</b>${fv.map(([k, v]) => `<div class="kv"><span>${esc(k)}</span><span class="ltr">${esc(v)}</span></div>`).join('')}</div>` : ''}
   <div class="card"><b>إثبات الدفع</b>${rurl ? `<a href="${esc(rurl)}" target="_blank"><img class="recv" src="${esc(rurl)}" style="margin-top:8px"></a><div class="kv"><span>رقم العملية</span><span>${num(o.payment_ref || '-')}</span></div>` : '<div class="empty">لم يرفع العميل إثبات الدفع بعد</div>'}</div>
   <div class="card"><b>سجل الطلب</b>${(lg || []).map((l) => `<div class="kv"><span>${ACTS[l.action] || l.action}</span><span>${num(dt(l.created_at))}</span></div>`).join('') || '<div class="empty">لا توجد عمليات</div>'}</div>
-  ${act.join('')}`;
+  ${act.join('')}<button class="btn r" id="odel" style="margin-top:8px">حذف الطلب نهائياً</button>`;
+  $('#odel').onclick = async () => { if (!confirm('حذف الطلب ' + o.order_no + ' نهائياً مع إشعاراته وإثبات الدفع؟ لا يمكن التراجع.')) return; const { data: rp, error } = await SB.rpc('admin_delete_order', { p_id: id }); if (error) return toast(error.message, true); if (rp) await SB.storage.from('receipts').remove([rp]); toast('تم حذف الطلب'); location.hash = '#/orders'; };
   const run = async (fn, m) => { const { error } = await fn(); if (error) return toast(error.message, true); toast(m); flushPush(); vOrder(id); };
   if ($('#ok')) $('#ok').onclick = () => confirm('تأكيد استلام المبلغ وبدء مدة الـ 24 ساعة؟') && run(() => SB.rpc('admin_confirm_payment', { p_order: id }), 'تم تأكيد الدفع');
   if ($('#no')) $('#no').onclick = () => { const n = prompt('سبب الرفض (يظهر للعميل)'); if (n !== null) run(() => SB.rpc('admin_reject_payment', { p_order: id, p_note: n }), 'تم رفض الإثبات'); };
@@ -175,12 +176,14 @@ async function vNotify() {
   <label class="lbl">الصفحة التي تفتح عند الضغط</label><select class="in" id="ur"><option value="#/">الرئيسية</option><option value="#/notifications">الإشعارات</option><option value="#/orders">طلباتي</option>${SVCS.filter((s) => s.active).map((s) => `<option value="#/service/${s.id}">خدمة: ${esc(s.name_ar)}</option>`).join('')}</select>
   <label class="lbl">معاينة</label><div class="pv"><img src="icons/icon-192.png"><div><b id="pt">عنوان الإشعار</b><p id="pb">نص الإشعار</p></div></div>
   <button class="btn" id="go" style="margin-top:14px">${ic('send', 18)} مراجعة وإرسال</button></div>
-  <div class="sec"><b>سجل الإشعارات المرسلة</b></div>
-  ${(logs || []).map((l) => `<div class="card"><b>${esc(l.title)}</b><p class="sub">${esc(l.body)}</p><div class="kv"><span>النوع</span><span>${TYPES[l.type] || l.type}</span></div><div class="kv"><span>التاريخ</span><span>${num(dt(l.created_at))}</span></div><div class="kv"><span>عدد المستلمين</span><span>${num(l.recipients)}</span></div><div class="kv"><span>الحالة</span><span><span class="badge ${l.push_status === 'failed' ? 'r' : 'g'}">${l.push_status === 'failed' ? 'فشل (لا توجد أجهزة مفعّلة أو رُفضت)' : l.push_status === 'accepted' ? 'قبلتها خدمة الإشعارات (' + l.push_ok + ' جهاز، فشل ' + l.push_failed + ')' : 'تم الحفظ - بانتظار الإرسال'}</span></span></div></div>`).join('') || '<div class="empty">لم يتم إرسال إشعارات بعد</div>'}
+  <div class="sec"><b>سجل الإشعارات المرسلة</b>${(logs || []).length ? '<button class="btn s r" id="clr">مسح الكل</button>' : ''}</div>
+  ${(logs || []).map((l) => `<div class="card"><b>${esc(l.title)}</b><p class="sub">${esc(l.body)}</p><button class="btn s r bdel" data-b="${l.id}" style="margin:6px 0">حذف هذا الإشعار</button><div class="kv"><span>النوع</span><span>${TYPES[l.type] || l.type}</span></div><div class="kv"><span>التاريخ</span><span>${num(dt(l.created_at))}</span></div><div class="kv"><span>عدد المستلمين</span><span>${num(l.recipients)}</span></div><div class="kv"><span>الحالة</span><span><span class="badge ${l.push_status === 'failed' ? 'r' : 'g'}">${l.push_status === 'failed' ? 'فشل (لا توجد أجهزة مفعّلة أو رُفضت)' : l.push_status === 'accepted' ? 'قبلتها خدمة الإشعارات (' + l.push_ok + ' جهاز، فشل ' + l.push_failed + ')' : 'تم الحفظ - بانتظار الإرسال'}</span></span></div></div>`).join('') || '<div class="empty">لم يتم إرسال إشعارات بعد</div>'}
   <p class="sub">ملاحظة: الحالة تعني أن خدمة الإشعارات قبلت الرسالة أو رفضتها، ولا تعني أن العميل فتحها. على الآيفون تصل الإشعارات فقط بعد إضافة التطبيق للشاشة الرئيسية.</p>`;
   $('#t').oninput = () => ($('#pt').textContent = $('#t').value || 'عنوان الإشعار');
   $('#b').oninput = () => ($('#pb').textContent = $('#b').value || 'نص الإشعار');
   $('#rc').onchange = () => ($('#pick').hidden = $('#rc').value !== 'sel');
+  if ($('#clr')) $('#clr').onclick = async () => { if (!confirm('مسح كل الإشعارات المرسلة وسجلها من كل العملاء؟ لا يمكن التراجع.')) return; const { error } = await SB.rpc('admin_clear_notifications'); if (error) return toast(error.message, true); toast('تم مسح كل الإشعارات'); vNotify(); };
+  $$('.bdel').forEach((b) => (b.onclick = async () => { if (!confirm('حذف هذا الإشعار من سجل الإرسال ومن إشعارات العملاء؟')) return; const { error } = await SB.rpc('admin_delete_broadcast', { p_id: +b.dataset.b }); if (error) return toast(error.message, true); toast('تم حذف الإشعار'); vNotify(); }));
   $('#go').onclick = async () => {
     const t = $('#t').value.trim(), b = $('#b').value.trim(); if (!t || !b) return toast('اكتب العنوان والنص', true);
     const users = $('#rc').value === 'sel' ? $$('#pick input:checked').map((i) => i.value) : null;
