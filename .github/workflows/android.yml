@@ -52,6 +52,13 @@ jobs:
           open(m,'w').write(t)
           PY
           if [ -f google-services.json ]; then cp google-services.json android/app/google-services.json; fi
+      - name: Launcher icons and splash
+        run: |
+          R=android/app/src/main/res
+          rm -f $R/mipmap-*/ic_launcher*.png $R/mipmap-anydpi-v26/ic_launcher*.xml
+          cp -r androidres/mipmap-* $R/
+          cp androidres/values/ic_launcher_background.xml $R/values/
+          for d in $R/drawable*; do [ -f $d/splash.png ] && cp androidres/splash.png $d/splash.png; done
       - run: npx cap sync android
       - name: Build debug APK
         working-directory: android

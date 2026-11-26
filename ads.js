@@ -10,8 +10,8 @@
   async function banner(on) {
     if (!ready) return;
     try {
-      if (on && !bannerOn) { bannerOn = true; await A.showBanner({ adId: cfg.banner, adSize: 'ADAPTIVE_BANNER', position: 'BOTTOM_CENTER', margin: 64, isTesting: cfg.test }); }
-      else if (!on && bannerOn) { bannerOn = false; await A.removeBanner(); }
+      if (on && !bannerOn) { bannerOn = true; document.body.classList.add('ad'); await A.showBanner({ adId: cfg.banner, adSize: 'ADAPTIVE_BANNER', position: 'BOTTOM_CENTER', margin: 112, isTesting: cfg.test }); }
+      else if (!on && bannerOn) { bannerOn = false; document.body.classList.remove('ad'); await A.removeBanner(); }
     } catch (e) { bannerOn = false; console.warn('banner', e); }
   }
   async function prep() { if (!ready || prepared) return; prepared = true; try { await A.prepareInterstitial({ adId: cfg.interstitial, isTesting: cfg.test }); } catch (e) { prepared = false; } }

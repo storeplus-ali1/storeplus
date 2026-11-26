@@ -104,3 +104,5 @@ input.in:focus,textarea.in:focus{border-color:#00c8ff}
 .lc span{width:32px!important;height:32px!important}.lc img{width:16px!important;height:16px!important}.lc i{font-size:10px!important}
 .lc.w span{background:#fff!important;border-color:#fff!important;width:auto!important;min-width:32px;padding:0 7px;border-radius:16px!important}.lc img.fc{filter:none!important;width:auto!important;height:18px!important;max-width:46px}
 .hero .logo{height:52px!important}.chips{display:none!important}
+
+body.ad #app{padding-bottom:200px}

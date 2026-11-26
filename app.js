@@ -46,9 +46,9 @@ function viewAuth(mode = (location.hash === '#/signup' ? 'signup' : 'login')) {
   <div class="chips"><span>${ic('bell', 16)} إشعارات فورية</span><span>${ic('check', 16)} تأكيد الدفع</span><span>${ic('clock', 16)} تنفيذ خلال 24 ساعة</span></div></div>
   <div class="tabs" style="margin-top:18px"><button class="${mode === 'login' ? 'on' : ''}" id="t1">تسجيل الدخول</button><button class="${mode === 'signup' ? 'on' : ''}" id="t2">حساب جديد</button></div>
   <form id="f">
-  ${mode === 'signup' ? `<label class="lbl">الاسم الثلاثي</label><input class="in" name="name" required minlength="6" autocomplete="name">
-  <label class="lbl">رقم الهاتف</label><input class="in ltr" name="phone" required inputmode="numeric" pattern="01[0-9]{9}" placeholder="01XXXXXXXXX" autocomplete="tel">` : ''}
-  <label class="lbl">البريد الإلكتروني</label><input class="in ltr" type="email" name="email" required autocomplete="email">
+  ${mode === 'signup' ? `<label class="lbl">رقم الهاتف</label><input class="in ltr" name="phone" required inputmode="numeric" pattern="01[0-9]{9}" placeholder="01XXXXXXXXX" autocomplete="tel">
+  <label class="lbl">الاسم الثلاثي</label><input class="in" name="name" required minlength="6" autocomplete="name">` : ''}
+  <label class="lbl">حساب Gmail</label><input class="in ltr" type="email" name="email" required autocomplete="email">
   <label class="lbl">كلمة المرور</label><input class="in ltr" type="password" name="pw" required minlength="8" autocomplete="${mode === 'login' ? 'current-password' : 'new-password'}">
   <div style="height:16px"></div><button class="btn" type="submit">${mode === 'login' ? 'دخول' : 'إنشاء الحساب'}</button>
   ${mode === 'login' ? '<div style="height:12px"></div><button class="btn o s" type="button" id="forgot">نسيت كلمة المرور؟</button>' : ''}
@@ -112,7 +112,7 @@ let SEL = null;
 function viewService(id) {
   navBar('home'); const s = SERVICES.find((x) => x.id == id); if (!s) return (location.hash = '#/');
   const pk = PKGS.filter((p) => p.service_id === s.id); if (!SEL || SEL.sid !== s.id) SEL = { sid: s.id, pid: pk[0]?.id };
-  app.innerHTML = `<div class="hd"><a class="ib" href="javascript:history.back()">${ic('back')}</a><h1>تفاصيل الخدمة</h1></div>
+  app.innerHTML = `<div class="hd"><a class="ib" href="javascript:goBack()">${ic('back')}</a><h1>تفاصيل الخدمة</h1></div>
   <div class="card" style="text-align:center"><img src="${esc(s.image || 'logo.png')}" style="width:100%;border-radius:14px;margin-bottom:10px"><h1>${esc(s.name_ar)}</h1><div class="sub ltr" style="text-align:center">${esc(s.name_en)}</div></div>
   <div class="card"><b style="font-size:14px">الوصف</b><div class="sub" style="font-size:12px;margin-top:6px">${esc(s.description_ar || '')}</div></div>
   <div class="sec"><b>الباقات المتاحة</b></div>
@@ -125,7 +125,7 @@ function viewService(id) {
 function viewOrderForm(sid, pid) {
   navBar('home'); const s = SERVICES.find((x) => x.id == sid), p = PKGS.find((x) => x.id == pid); if (!s || !p) return (location.hash = '#/');
   const fields = s.fields || [];
-  app.innerHTML = `<div class="hd"><a class="ib" href="javascript:history.back()">${ic('back')}</a><h1>مراجعة الطلب</h1></div>
+  app.innerHTML = `<div class="hd"><a class="ib" href="javascript:goBack()">${ic('back')}</a><h1>مراجعة الطلب</h1></div>
   <form id="f"><div class="card"><div class="kv"><span>الاسم الثلاثي</span><span>${esc(ME.full_name)}</span></div><div class="kv"><span>رقم الهاتف</span><span>${num(ME.phone)}</span></div><div class="kv"><span>الخدمة</span><span>${esc(s.name_ar)}</span></div><div class="kv"><span>الباقة</span><span>${esc(p.name_ar)}</span></div></div>
   <div class="card"><b style="font-size:14px">البيانات المطلوبة للتفعيل</b>${fields.map((f) => `<label class="lbl">${esc(f.label_ar)}</label><input class="in ${f.type === 'text' ? '' : 'ltr'}" name="${esc(f.key)}" type="${f.type === 'email' ? 'email' : f.type === 'tel' ? 'tel' : 'text'}" ${f.required ? 'required' : ''}>`).join('') || '<div class="sub">لا توجد بيانات مطلوبة</div>'}</div>
   <div class="card">${p.old_price ? `<div class="kv"><span>السعر الأصلي</span><span>${money(p.old_price)}</span></div><div class="kv"><span>قيمة الخصم</span><span>- ${money(p.old_price - p.price)}</span></div>` : ''}<div class="kv"><span>السعر النهائي</span><span style="color:#38d9ff;font-size:16px;font-weight:700">${money(p.price)}</span></div><div class="kv"><span>مدة التنفيذ</span><span>${num(SETTINGS.execution_hours || 24)} ساعة بعد تأكيد الدفع</span></div><div class="kv"><span>طريقة الدفع</span><span>Vodafone Cash</span></div></div>
@@ -232,3 +232,15 @@ SB.auth.onAuthStateChange((ev) => { if (ev === 'PASSWORD_RECOVERY') viewRecovery
 setInterval(async () => { if (ME) { await refreshUnread(); const d = $('.top .dot'); } }, 30000);
 boot();
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+
+function goBack() { if (history.length > 1) history.back(); else location.hash = '#/'; }
+window.goBack = goBack;
+(function () {
+  const CA = window.Capacitor && Capacitor.Plugins && Capacitor.Plugins.App;
+  if (!CA || !Capacitor.isNativePlatform || !Capacitor.isNativePlatform()) return;
+  CA.addListener('backButton', () => {
+    const h = location.hash.replace(/^#/, '');
+    if (h === '' || h === '/' || (document.querySelector('#nav') || {}).hidden) CA.exitApp();
+    else location.hash = '#/';
+  });
+})();
