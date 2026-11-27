@@ -108,3 +108,11 @@ input.in:focus,textarea.in:focus{border-color:#00c8ff}
 body.ad #app{padding-bottom:22px}
 
 #sfab{position:fixed;left:14px;bottom:22px;width:50px;height:50px;border-radius:50%;background:linear-gradient(135deg,#0a3cff,#00c8ff);color:#fff;align-items:center;justify-content:center;box-shadow:0 0 18px #00b7ffaa;z-index:40;border:2px solid #050b1c}
+
+#splash{position:fixed;inset:0;z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;text-align:center;background:radial-gradient(500px 340px at 80% 0%,#0e2a6b88,transparent),radial-gradient(420px 320px at 0% 70%,#00b7ff33,transparent),#050b1c;transition:transform .6s ease-in}
+#splash.out{transform:translateX(110%)}
+#splash img{width:62vw;max-width:300px;filter:drop-shadow(0 0 24px #00b7ff88)}
+#splash h1{font-size:26px;color:#eaf2ff;text-shadow:0 0 14px #00b7ffaa;margin:0}
+#splash p{position:absolute;bottom:42px;margin:0;font-size:18px;letter-spacing:2px;color:#7fd4ff}
+.top .logo{animation:sphop 10s ease-in-out infinite;transform-origin:50% 100%}
+@keyframes sphop{0%,90%,100%{transform:translateY(0)}93%{transform:translateY(-12px)}96%{transform:translateY(0)}98%{transform:translateY(-4px)}}

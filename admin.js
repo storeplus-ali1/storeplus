@@ -5,7 +5,7 @@ let ME = null, CATS = [], SVCS = [], PKGS = [];
 const TYPES = { new_offer: 'عرض جديد', new_service: 'خدمة جديدة', discount: 'خصم', important: 'تنبيه مهم' };
 const ACTS = { order_created: 'إنشاء الطلب', proof_submitted: 'رفع إثبات الدفع', payment_confirmed: 'تأكيد الدفع', payment_rejected: 'رفض إثبات الدفع', status_in_progress: 'بدء التنفيذ', status_completed: 'إكمال الطلب', status_cancelled: 'إلغاء الطلب', order_deleted: 'حذف طلب', broadcast_deleted: 'حذف إشعار', service_deleted: 'حذف خدمة', notifications_cleared: 'مسح كل الإشعارات', customer_banned: 'حظر عميل', customer_unbanned: 'إلغاء حظر عميل', customer_deleted: 'حذف عميل', customer_password_reset: 'تغيير كلمة مرور عميل', customer_created: 'إنشاء حساب عميل', customer_discount_set: 'تعديل خصم عميل' };
 function nav(a) {
-  const t = [['dash', 'الرئيسية', 'chart'], ['orders', 'الطلبات', 'orders'], ['services', 'الخدمات', 'tag'], ['customers', 'العملاء', 'users'], ['notify', 'الإشعارات', 'bell'], ['settings', 'الإعدادات', 'gear']];
+  const t = [['dash', 'الرئيسية', 'chart'], ['orders', 'الطلبات', 'orders'], ['services', 'الخدمات', 'tag'], ['cats', 'القوائم', 'orders'], ['customers', 'العملاء', 'users'], ['notify', 'الإشعارات', 'bell'], ['settings', 'الإعدادات', 'gear']];
   $('#nav').hidden = !ME;
   $('#nav').innerHTML = t.map(([k, l, i]) => `<a href="#/${k}" class="${a === k ? 'on' : ''}">${ic(i)}<span>${l}</span></a>`).join('');
 }
@@ -39,6 +39,7 @@ async function boot() {
   if (!p) return viewLogin();
   if (p.role !== 'admin') { await SB.auth.signOut(); viewLogin(); return toast('هذا الحساب ليس حساب مشرف', true); }
   ME = p; await loadCat(); route();
+  if (window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform()) enablePush(true).catch(() => {});
 }
 
 async function vDash() {
@@ -234,6 +235,27 @@ async function vSettings() {
   $('#sv').onclick = async () => { for (const i of $$('[data-k]')) { const { error } = await SB.from('settings').upsert({ key: i.dataset.k, value: i.value.trim(), updated_at: new Date().toISOString() }); if (error) return toast(error.message, true); } toast('تم حفظ الإعدادات'); };
   $('#out').onclick = async () => { await SB.auth.signOut(); ME = null; viewLogin(); };
 }
+async function vCats() {
+  nav('cats'); loading(); await loadCat();
+  const cnt = (id) => SVCS.filter((s) => s.category_id === id).length;
+  app.innerHTML = `${head('القوائم (الأقسام)')}
+  <div class="card"><h2>قائمة جديدة</h2><label class="lbl">الاسم بالعربي</label><input class="in" id="cna"><label class="lbl">الاسم بالإنجليزي (اختياري)</label><input class="in ltr" id="cne"><button class="btn" id="cadd" style="margin-top:10px">إضافة القائمة</button></div>
+  <div class="sec"><b>القوائم الحالية</b></div>
+  ${CATS.map((c) => `<div class="card" data-c="${c.id}"><label class="lbl">الاسم بالعربي</label><input class="in" data-f="name_ar" value="${esc(c.name_ar)}"><label class="lbl">الاسم بالإنجليزي</label><input class="in ltr" data-f="name_en" value="${esc(c.name_en || '')}">
+  <label class="lbl">الترتيب (رقم أصغر يظهر أولًا)</label><input class="in ltr" type="number" data-f="sort" value="${c.sort ?? 0}">
+  <label class="chk"><input type="checkbox" data-f="active" ${c.active ? 'checked' : ''}> ظاهرة للعملاء</label>
+  <div class="kv"><span>عدد الخدمات فيها</span><span>${num(cnt(c.id))}</span></div>
+  <div class="sw" style="margin-top:8px"><button class="btn s csv">حفظ</button><a class="btn s o" href="#/services">الخدمات وصورها</a><button class="btn s r cdl">حذف</button></div></div>`).join('') || '<div class="empty">لا توجد قوائم</div>'}
+  <p class="sub">لتغيير صورة خدمة أو حذفها: افتح الخدمة من تبويب الخدمات.</p>`;
+  $('#cadd').onclick = async () => {
+    const n = $('#cna').value.trim(); if (!n) return toast('اكتب اسم القائمة', true);
+    const mx = CATS.reduce((m, c) => Math.max(m, c.sort || 0), 0);
+    const { error } = await SB.from('categories').insert({ name_ar: n, name_en: $('#cne').value.trim() || n, sort: mx + 1, active: true }); if (error) return toast(error.message, true);
+    toast('تمت إضافة القائمة'); vCats();
+  };
+  $$('.csv').forEach((b) => (b.onclick = async () => { const d = b.closest('[data-c]'), row = {}; d.querySelectorAll('[data-f]').forEach((i) => (row[i.dataset.f] = i.type === 'checkbox' ? i.checked : i.type === 'number' ? +i.value || 0 : i.value.trim())); if (!row.name_ar) return toast('الاسم مطلوب', true); const { error } = await SB.from('categories').update(row).eq('id', +d.dataset.c); if (error) return toast(error.message, true); toast('تم الحفظ'); vCats(); }));
+  $$('.cdl').forEach((b) => (b.onclick = async () => { const d = b.closest('[data-c]'), id = +d.dataset.c, c = CATS.find((x) => x.id === id); if (cnt(id)) return toast('انقل أو احذف خدمات هذه القائمة أولًا (' + cnt(id) + ' خدمة)', true); if (!confirm('حذف القائمة ' + c.name_ar + '؟')) return; const { error } = await SB.from('categories').delete().eq('id', id); if (error) return toast(error.message, true); toast('تم الحذف'); vCats(); }));
+}
 async function vPromos() {
   nav('settings'); loading(); await loadCat();
   const chk = (cls, sel) => (SVCS || []).map((s) => `<label style="display:flex;gap:8px;align-items:center;padding:6px 0"><input type="checkbox" class="${cls}" value="${s.id}" ${sel && sel.includes(s.id) ? 'checked' : ''}> ${esc(s.name_ar)}</label>`).join('');
@@ -304,7 +326,7 @@ function route() {
   if (!ME) return viewLogin();
   const p = (location.hash.replace(/^#/, '') || '/dash').split('/').filter(Boolean);
   const k = p[0] || 'dash';
-  ({ dash: vDash, orders: vOrders, order: () => vOrder(p[1]), services: vServices, svc: () => vSvc(p[1]), customers: vCustomers, notify: vNotify, settings: vSettings, promos: vPromos, update: vUpdate, audit: vAudit }[k] || vDash)();
+  ({ dash: vDash, orders: vOrders, order: () => vOrder(p[1]), services: vServices, cats: vCats, svc: () => vSvc(p[1]), customers: vCustomers, notify: vNotify, settings: vSettings, promos: vPromos, update: vUpdate, audit: vAudit }[k] || vDash)();
 }
 window.addEventListener('hashchange', route);
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});

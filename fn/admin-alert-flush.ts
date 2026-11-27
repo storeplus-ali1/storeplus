@@ -16,7 +16,7 @@ async function fcmToken(sa: any) {
   _tok = { t: j.access_token, e: Date.now() + j.expires_in * 1000 }; return _tok.t;
 }
 async function sendFcm(sa: any, token: string, n: any) {
-  const r = await fetch('https://fcm.googleapis.com/v1/projects/' + sa.project_id + '/messages:send', { method: 'POST', headers: { Authorization: 'Bearer ' + await fcmToken(sa), 'Content-Type': 'application/json' }, body: JSON.stringify({ message: { token, notification: { title: n.title, body: n.body }, data: { url: String(n.url || '#/notifications'), id: String(n.id) }, android: { priority: 'HIGH', notification: { channel_id: 'default', sound: 'default' } } } }) });
+  const r = await fetch('https://fcm.googleapis.com/v1/projects/' + sa.project_id + '/messages:send', { method: 'POST', headers: { Authorization: 'Bearer ' + await fcmToken(sa), 'Content-Type': 'application/json' }, body: JSON.stringify({ message: { token, notification: { title: n.title, body: n.body }, data: { url: String(n.url || '#/notifications'), id: String(n.id) }, android: { priority: 'HIGH', notification: { channel_id: 'sp_sound', sound: 'notify' } } } }) });
   if (!r.ok) { const t = await r.text(); const e: any = new Error('fcm ' + r.status + ' ' + t); e.statusCode = r.status; e.body = t; throw e; }
 }
 Deno.serve(async (req) => {

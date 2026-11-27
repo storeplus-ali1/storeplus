@@ -26,7 +26,7 @@ jobs:
         run: |
           mkdir www
           cp ads.js www/ads.js
-          cp -r index.html app.js common.js style.css manifest.json sw.js supabase.js logo.png icons img brands www/
+          cp -r index.html app.js common.js style.css manifest.json sw.js supabase.js logo.png icons img brands sounds www/
       - name: Ads config
         run: |
           MODE="${{ github.event.inputs.ads || 'test' }}"
@@ -60,6 +60,7 @@ jobs:
           rm -f $R/mipmap-*/ic_launcher*.png $R/mipmap-anydpi-v26/ic_launcher*.xml
           cp -r androidres/mipmap-* $R/
           cp androidres/values/ic_launcher_background.xml $R/values/
+          mkdir -p $R/raw && cp androidres/raw/notify.mp3 $R/raw/
           for f in $(find $R -name splash.png); do cp androidres/splash.png $f; done
       - run: npx cap sync android
       - name: Stable signing key and increasing versionCode
