@@ -116,3 +116,5 @@ body.ad #app{padding-bottom:22px}
 #splash p{position:absolute;bottom:42px;margin:0;font-size:18px;letter-spacing:2px;color:#7fd4ff}
 .top .logo{animation:sphop 5s ease-in-out infinite;transform-origin:50% 100%}
 @keyframes sphop{0%,90%,100%{transform:translateY(0)}93%{transform:translateY(-12px)}96%{transform:translateY(0)}98%{transform:translateY(-4px)}}
+
+.stk{position:sticky;top:0;z-index:30;background:#050b1c;margin:-14px -16px 0;padding:14px 16px 2px;box-shadow:0 6px 14px #050b1ccc}

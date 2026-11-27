@@ -105,9 +105,9 @@ async function viewHome() {
   const offers = PKGS.filter((p) => p.old_price && Number(p.old_price) > Number(p.price));
   const latest = SERVICES.slice(0, 8);
   const most = [...SERVICES].sort((a, b) => (b.sold_count || 0) - (a.sold_count || 0)).slice(0, 6);
-  app.innerHTML = `${logoTop()}
+  app.innerHTML = `<div class="stk">${logoTop()}
   <h1>أهلاً بك، ${esc(ME.full_name)}</h1><div class="sub">اختر الخدمة اللي تناسبك واطلبها في دقايق</div>
-  <div class="search">${ic('search', 20)}<input id="q" placeholder="ابحث عن خدمة..."></div>
+  <div class="search">${ic('search', 20)}<input id="q" placeholder="ابحث عن خدمة..."></div></div>
   <div id="res"></div>
   <div class="sec"><b>أقسام الخدمات</b></div>
   <div class="cats">${CATS.map((c) => `<a class="cat" href="#/cat/${c.id}"><i>${c.image ? `<img src="${esc(c.image)}" alt="" style="width:58px;height:58px;object-fit:cover;border-radius:14px">` : catArt(c.id)}</i>${esc(c.name_ar)}</a>`).join('')}</div>
