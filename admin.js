@@ -3,7 +3,7 @@ const app = $('#app');
 const ADMIN_EMAIL = 'scary01099283934+admin@gmail.com'; // login username "Ali Henish" maps to this
 let ME = null, CATS = [], SVCS = [], PKGS = [];
 const TYPES = { new_offer: 'عرض جديد', new_service: 'خدمة جديدة', discount: 'خصم', important: 'تنبيه مهم' };
-const ACTS = { order_created: 'إنشاء الطلب', proof_submitted: 'رفع إثبات الدفع', payment_confirmed: 'تأكيد الدفع', payment_rejected: 'رفض إثبات الدفع', status_in_progress: 'بدء التنفيذ', status_completed: 'إكمال الطلب', status_cancelled: 'إلغاء الطلب', order_deleted: 'حذف طلب', broadcast_deleted: 'حذف إشعار', service_deleted: 'حذف خدمة', notifications_cleared: 'مسح كل الإشعارات', customer_banned: 'حظر عميل', customer_unbanned: 'إلغاء حظر عميل', customer_deleted: 'حذف عميل', customer_password_reset: 'تغيير كلمة مرور عميل' };
+const ACTS = { order_created: 'إنشاء الطلب', proof_submitted: 'رفع إثبات الدفع', payment_confirmed: 'تأكيد الدفع', payment_rejected: 'رفض إثبات الدفع', status_in_progress: 'بدء التنفيذ', status_completed: 'إكمال الطلب', status_cancelled: 'إلغاء الطلب', order_deleted: 'حذف طلب', broadcast_deleted: 'حذف إشعار', service_deleted: 'حذف خدمة', notifications_cleared: 'مسح كل الإشعارات', customer_banned: 'حظر عميل', customer_unbanned: 'إلغاء حظر عميل', customer_deleted: 'حذف عميل', customer_password_reset: 'تغيير كلمة مرور عميل', customer_created: 'إنشاء حساب عميل', customer_discount_set: 'تعديل خصم عميل' };
 function nav(a) {
   const t = [['dash', 'الرئيسية', 'chart'], ['orders', 'الطلبات', 'orders'], ['services', 'الخدمات', 'tag'], ['customers', 'العملاء', 'users'], ['notify', 'الإشعارات', 'bell'], ['settings', 'الإعدادات', 'gear']];
   $('#nav').hidden = !ME;
@@ -93,7 +93,7 @@ async function vOrder(id) {
   app.innerHTML = `${head('تفاصيل الطلب', '#/orders')}
   <div class="card"><div class="kv"><span>رقم الطلب</span><span>${num(o.order_no)}</span></div><div class="kv"><span>الحالة</span><span>${badge(o.status)}</span></div>
   <div class="kv"><span>الخدمة</span><span>${esc(o.service_name_ar)}</span></div><div class="kv"><span>الباقة</span><span>${esc(o.package_name_ar)}</span></div>
-  ${Number(o.discount) > 0 ? `<div class="kv"><span>السعر قبل الكود</span><span>${money(o.price)}</span></div><div class="kv"><span>كود الخصم ${esc(o.promo_code)}</span><span>- ${money(o.discount)}</span></div>` : ''}<div class="kv"><span>الإجمالي</span><span>${money(o.total)}</span></div><div class="kv"><span>تاريخ الطلب</span><span>${num(dt(o.created_at))}</span></div>
+  ${Number(o.discount) > 0 ? `<div class="kv"><span>السعر قبل الكود</span><span>${money(o.price)}</span></div><div class="kv"><span>${o.discount_source === 'account' ? 'خصم الحساب' : 'كود الخصم ' + esc(o.promo_code)}</span><span>- ${money(o.discount)}</span></div>` : ''}<div class="kv"><span>الإجمالي</span><span>${money(o.total)}</span></div><div class="kv"><span>تاريخ الطلب</span><span>${num(dt(o.created_at))}</span></div>
   ${o.due_at ? `<div class="kv"><span>موعد التنفيذ المتوقع</span><span>${num(dt(o.due_at))}</span></div>` : ''}</div>
   <div class="card"><b>العميل</b><div class="kv"><span>الاسم</span><span>${esc(u?.full_name)}</span></div><div class="kv"><span>الهاتف</span><span>${num(u?.phone)}</span></div><div class="kv"><span>البريد</span><span class="ltr">${esc(u?.email)}</span></div></div>
   ${fv.length ? `<div class="card"><b>بيانات الطلب</b>${fv.map(([k, v]) => `<div class="kv"><span>${esc(k)}</span><span class="ltr">${esc(v)}</span></div>`).join('')}</div>` : ''}
@@ -141,26 +141,40 @@ async function admFn(name, body) {
 async function vCustomers() {
   nav('customers'); loading();
   const { data } = await SB.from('profiles').select('*').eq('role', 'customer').order('created_at', { ascending: false });
-  app.innerHTML = `${head('العملاء')}<div class="card"><h2>بحث برقم الهاتف</h2><input class="in ltr" id="sp" inputmode="numeric" placeholder="01XXXXXXXXX"><div style="height:12px"></div><button class="btn" id="sb">بحث</button></div><div id="cres"></div>` + ((data || []).map((u) => `<div class="row" data-ph="${esc(u.phone)}" style="cursor:pointer"><div class="t"><b>${esc(u.full_name)}</b><em><span class="ltr">${num(u.phone)}</span></em></div><div class="p">${num(dt(u.created_at).slice(0, 10))}</div></div>`).join('') || '<div class="empty">لا يوجد عملاء</div>');
+  app.innerHTML = `${head('العملاء')}<div class="card"><h2>إنشاء حساب عميل</h2><label class="lbl">الاسم</label><input class="in" id="ncn"><label class="lbl">رقم الهاتف</label><input class="in ltr" id="ncp" inputmode="numeric" placeholder="01XXXXXXXXX"><label class="lbl">كلمة المرور (8 أحرف على الأقل)</label><input class="in ltr" id="ncw" autocomplete="off"><label class="lbl">خصم دائم على الحساب % (اختياري)</label><input class="in ltr" id="ncd" type="number" min="0" max="100" step="any" inputmode="decimal"><div style="height:12px"></div><button class="btn" id="ncb">إنشاء الحساب</button></div><div class="card"><h2>بحث برقم الهاتف</h2><input class="in ltr" id="sp" inputmode="numeric" placeholder="01XXXXXXXXX"><div style="height:12px"></div><button class="btn" id="sb">بحث</button></div><div id="cres"></div>` + ((data || []).map((u) => `<div class="row" data-ph="${esc(u.phone)}" style="cursor:pointer"><div class="t"><b>${esc(u.full_name)}</b><em><span class="ltr">${num(u.phone)}</span></em></div><div class="p">${num(dt(u.created_at).slice(0, 10))}</div></div>`).join('') || '<div class="empty">لا يوجد عملاء</div>');
   const find = async (ph) => {
     if (ph.replace(/\D/g, '').length < 10) return toast('أدخل رقم هاتف صحيح', true);
     $('#cres').innerHTML = '<div class="empty">جاري البحث...</div>';
     const { ok, j } = await admFn('admin-customer', { action: 'search', phone: ph });
     if (!ok) { $('#cres').innerHTML = ''; return toast(j.error === 'not_found' ? 'لا يوجد عميل بهذا الرقم' : 'تعذر البحث', true); }
-    const p = j.profile, ST = { awaiting_payment: 'بانتظار الدفع', proof_submitted: 'تم رفع الإثبات', payment_confirmed: 'تم تأكيد الدفع', in_progress: 'قيد التنفيذ', completed: 'تم التسليم', rejected: 'مرفوض', cancelled: 'ملغي' };
+    const p = j.profile; const { data: cd } = await SB.from('customer_discounts').select('percent').eq('user_id', p.id).maybeSingle(); const ST = { awaiting_payment: 'بانتظار الدفع', proof_submitted: 'تم رفع الإثبات', payment_confirmed: 'تم تأكيد الدفع', in_progress: 'قيد التنفيذ', completed: 'تم التسليم', rejected: 'مرفوض', cancelled: 'ملغي' };
     $('#cres').innerHTML = `<div class="card"><h2>${esc(p.full_name)} <span class="badge ${p.banned ? 'r' : 'g'}">${p.banned ? 'محظور' : 'نشط'}</span></h2>
     <div class="kv"><span>رقم الهاتف</span><span>${num(p.phone)}</span></div><div class="kv"><span>تاريخ التسجيل</span><span>${num(dt(p.created_at))}</span></div><div class="kv"><span>آخر دخول</span><span>${p.last_sign_in_at ? num(dt(p.last_sign_in_at)) : 'لم يدخل'}</span></div><div class="kv"><span>الأجهزة المفعّلة للإشعارات</span><span>${num(p.devices)}</span></div><div class="kv"><span>عدد الطلبات</span><span>${num(j.orders.length)}</span></div><div class="kv"><span>إجمالي المشتريات المسلّمة</span><span>${num(j.spent)} جنيه مصري</span></div>
     <p class="sub">المتجر يعمل بالدفع اليدوي عبر فودافون كاش لكل طلب، فلا توجد محفظة رصيد. كل المدفوعات ظاهرة في الطلبات.</p>
     <div style="height:10px"></div><button class="btn ${p.banned ? '' : 'r'}" id="bn">${p.banned ? 'إلغاء الحظر' : 'حظر العميل'}</button><div style="height:8px"></div><button class="btn r" id="dl">حذف الحساب نهائياً</button></div>
-    <div class="card"><h2>تغيير كلمة المرور</h2><label class="lbl">كلمة المرور الجديدة (8 أحرف على الأقل)</label><input class="in ltr" id="rw" minlength="8"><div style="height:12px"></div><button class="btn" id="rb">حفظ كلمة المرور الجديدة</button></div>
+    <div class="card"><h2>خصم الحساب</h2><p class="sub">نسبة تُطبَّق تلقائيًا على كل طلبات هذا العميل. لو العميل أدخل كود خصم، يُطبَّق الأكبر فقط. اكتب 0 للإلغاء.</p><label class="lbl">نسبة الخصم %</label><input class="in ltr" id="dpc" type="number" min="0" max="100" step="any" inputmode="decimal" value="${cd ? Number(cd.percent) : 0}"><div style="height:12px"></div><button class="btn" id="dsv">حفظ الخصم</button></div><div class="card"><h2>تغيير كلمة المرور</h2><label class="lbl">كلمة المرور الجديدة (8 أحرف على الأقل)</label><input class="in ltr" id="rw" minlength="8"><div style="height:12px"></div><button class="btn" id="rb">حفظ كلمة المرور الجديدة</button></div>
     <div class="sec"><b>الطلبات</b></div>${j.orders.map((o) => `<a class="row" href="#/order/${o.id}"><div class="t"><b>${num(o.order_no)}</b><em>${esc(o.service_name_ar)} - ${esc(o.package_name_ar)}</em></div><div class="p">${num(o.total)} جنيه مصري<br><span class="sub">${ST[o.status] || o.status}</span></div></a>`).join('') || '<div class="empty">لا توجد طلبات</div>'}
     <div class="sec"><b>آخر الإشعارات</b></div>${j.notifications.map((n) => `<div class="card"><b>${esc(n.title)}</b><p class="sub">${esc(n.body)}</p><div class="sub">${num(dt(n.created_at))}</div></div>`).join('') || '<div class="empty">لا توجد إشعارات</div>'}`;
     $('#bn').onclick = async () => { const act = p.banned ? 'unban' : 'ban'; if (!confirm((p.banned ? 'إلغاء حظر ' : 'حظر ') + 'العميل صاحب الرقم ' + p.phone + '؟')) return; const r = await admFn('admin-customer', { action: act, phone: p.phone }); toast(r.ok ? (p.banned ? 'تم إلغاء الحظر' : 'تم حظر العميل') : 'تعذر التنفيذ', !r.ok); if (r.ok) find(p.phone); };
     $('#dl').onclick = async () => { if (!confirm('حذف حساب ' + p.full_name + ' وكل طلباته وإشعاراته نهائياً؟ لا يمكن التراجع.')) return; if (prompt('اكتب رقم الهاتف للتأكيد') !== p.phone) return toast('الرقم غير مطابق، لم يتم الحذف', true); const r = await admFn('admin-customer', { action: 'delete', phone: p.phone }); toast(r.ok ? 'تم حذف الحساب' : 'تعذر الحذف', !r.ok); if (r.ok) vCustomers(); };
     $('#rb').onclick = async () => { const pw = $('#rw').value; if (pw.length < 8) return toast('كلمة المرور 8 أحرف على الأقل', true); if (!confirm('تغيير كلمة مرور العميل صاحب الرقم ' + p.phone + '؟')) return; try { const r = await admFn('admin-set-password', { phone: p.phone, password: pw }); if (!r.ok) return toast('تعذر تغيير كلمة المرور', true); $('#rw').value = ''; toast('تم تغيير كلمة المرور. أبلغ العميل بها'); } catch (e) { toast('تعذر الاتصال', true); } };
+    $('#dsv').onclick = async () => { const v = +$('#dpc').value || 0; if (v < 0 || v > 100) return toast('النسبة من 0 إلى 100', true); if (!confirm(v ? `تطبيق خصم ${v}% على كل طلبات ${p.full_name}؟` : 'إلغاء خصم الحساب؟')) return; const { error } = await SB.rpc('admin_set_discount', { p_user: p.id, p_percent: v }); toast(error ? error.message : 'تم حفظ الخصم', !!error); };
     $('#cres').scrollIntoView();
   };
   $('#sb').onclick = () => find($('#sp').value.trim());
+  $('#ncb').onclick = async () => {
+    const name = $('#ncn').value.trim(), ph = $('#ncp').value.trim(), pw = $('#ncw').value, dc = +$('#ncd').value || 0;
+    if (name.length < 2) return toast('اكتب اسم العميل', true);
+    if (!/^01[0-9]{9}$/.test(ph.replace(/\D/g, '').replace(/^20/, '0'))) return toast('رقم الهاتف غير صحيح', true);
+    if (pw.length < 8) return toast('كلمة المرور 8 أحرف على الأقل', true);
+    if (dc < 0 || dc > 100) return toast('نسبة الخصم من 0 إلى 100', true);
+    if (!confirm(`إنشاء حساب للعميل ${name} برقم ${ph}${dc ? ' بخصم ' + dc + '%' : ''}؟`)) return;
+    $('#ncb').disabled = true;
+    const { ok, j } = await admFn('admin-create-customer', { full_name: name, phone: ph.replace(/\D/g, '').replace(/^20/, '0'), password: pw, discount: dc });
+    $('#ncb').disabled = false;
+    if (!ok) return toast(j.error === 'exists' ? 'الرقم مسجل بالفعل' : 'تعذر إنشاء الحساب', true);
+    $('#ncw').value = ''; $('#ncn').value = ''; toast('تم إنشاء الحساب. سلّم الرقم وكلمة المرور للعميل.'); $('#sp').value = ph; $('#sb').onclick();
+  };
   $$('[data-ph]').forEach((r) => (r.onclick = () => { $('#sp').value = r.dataset.ph; find(r.dataset.ph); }));
 }
 

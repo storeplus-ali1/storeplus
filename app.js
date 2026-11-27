@@ -149,22 +149,23 @@ function viewOrderForm(sid, pid) {
   <div class="card"><b style="font-size:14px">كود الخصم</b><div class="sw" style="margin-top:8px"><input class="in ltr" id="promo" placeholder="PROMO" autocapitalize="characters" autocomplete="off" style="text-transform:uppercase"><button type="button" class="btn s o" id="pa">تطبيق</button></div><div id="pm" class="sub" style="margin-top:6px"></div></div>
   <div class="card" id="pc"></div>
   <div class="sub" style="margin-bottom:10px">سيظهر رقم الطلب بعد الإنشاء.</div><button class="btn" id="b">إنشاء الطلب والانتقال للدفع</button></form>`;
-  let PR = null;
+  let PR = null, TYPED = '';
   const PERR = { invalid: 'كود الخصم غير صحيح', expired: 'كود الخصم منتهي', exhausted: 'تم استنفاد هذا الكود', user_limit: 'استخدمت هذا الكود من قبل', min_total: 'الباقة أقل من الحد الأدنى للكود', package_unavailable: 'الباقة غير متاحة' };
-  const drawPrice = () => { const d = PR ? Number(PR.discount) : 0, old = Number(p.old_price || 0); $('#pc').innerHTML = `${p.old_price ? `<div class="kv"><span>السعر الأصلي</span><span>${money(p.old_price)}</span></div><div class="kv"><span>قيمة الخصم</span><span>- ${money(p.old_price - p.price)}</span></div>` : ''}${PR ? `<div class="kv"><span>كود الخصم ${esc(PR.code)}</span><span style="color:#37e08f">- ${money(d)}</span></div>` : ''}<div class="kv"><span>السعر النهائي</span><span style="color:#38d9ff;font-size:16px;font-weight:700">${money(Number(p.price) - d)}</span></div><div class="kv"><span>مدة التنفيذ</span><span>${num(SETTINGS.execution_hours || 24)} ساعة بعد تأكيد الدفع</span></div><div class="kv"><span>طريقة الدفع</span><span>Vodafone Cash</span></div>`; };
-  drawPrice();
-  $('#promo').oninput = () => { PR = null; $('#pm').textContent = ''; drawPrice(); };
+  const drawPrice = () => { const d = PR ? Number(PR.discount) : 0, old = Number(p.old_price || 0); $('#pc').innerHTML = `${p.old_price ? `<div class="kv"><span>السعر الأصلي</span><span>${money(p.old_price)}</span></div><div class="kv"><span>قيمة الخصم</span><span>- ${money(p.old_price - p.price)}</span></div>` : ''}${PR && d > 0 ? `<div class="kv"><span>${PR.source === 'account' ? 'خصم حسابك' : 'كود الخصم ' + esc(PR.code)}</span><span style="color:#37e08f">- ${money(d)}</span></div>` : ''}<div class="kv"><span>السعر النهائي</span><span style="color:#38d9ff;font-size:16px;font-weight:700">${money(Number(p.price) - d)}</span></div><div class="kv"><span>مدة التنفيذ</span><span>${num(SETTINGS.execution_hours || 24)} ساعة بعد تأكيد الدفع</span></div><div class="kv"><span>طريقة الدفع</span><span>Vodafone Cash</span></div>`; };
+  const base = async () => { const { data } = await SB.rpc('validate_promo', { p_code: '', p_package: p.id }); PR = data && data.ok && Number(data.discount) > 0 ? data : null; drawPrice(); };
+  drawPrice(); base();
+  $('#promo').oninput = () => { $('#pm').textContent = ''; base(); };
   $('#pa').onclick = async () => {
-    const c = $('#promo').value.trim(); PR = null; if (!c) { $('#pm').textContent = ''; return drawPrice(); }
+    const c = $('#promo').value.trim(); if (!c) { $('#pm').textContent = ''; return base(); }
     $('#pa').disabled = true; const { data, error } = await SB.rpc('validate_promo', { p_code: c, p_package: p.id }); $('#pa').disabled = false;
-    if (error || !data) { $('#pm').style.color = '#ff6b6b'; $('#pm').textContent = 'تعذر التحقق من الكود'; return drawPrice(); }
-    if (!data.ok) { $('#pm').style.color = '#ff6b6b'; $('#pm').textContent = PERR[data.error] || 'كود الخصم غير صالح'; return drawPrice(); }
-    PR = data; $('#pm').style.color = '#37e08f'; $('#pm').textContent = 'تم تطبيق الكود'; drawPrice();
+    if (error || !data) { $('#pm').style.color = '#ff6b6b'; $('#pm').textContent = 'تعذر التحقق من الكود'; return base(); }
+    if (!data.ok) { $('#pm').style.color = '#ff6b6b'; $('#pm').textContent = PERR[data.error] || 'كود الخصم غير صالح'; return base(); }
+    PR = data; TYPED = c; $('#pm').style.color = '#37e08f'; $('#pm').textContent = data.source === 'account' ? 'خصم حسابك أكبر من الكود، وتم تطبيقه تلقائيًا' : 'تم تطبيق الكود'; drawPrice();
   };
   $('#f').onsubmit = async (e) => {
     e.preventDefault(); const b = $('#b'); b.disabled = true; const vals = Object.fromEntries(new FormData(e.target));
-    const code = $('#promo').value.trim(); if (code && !PR) { toast('اضغط تطبيق للتحقق من كود الخصم أو امسحه', true); b.disabled = false; return; }
-    const { data, error } = await SB.rpc('create_order', { p_package: p.id, p_fields: vals, p_promo: PR ? PR.code : null });
+    const code = $('#promo').value.trim(); if (code && code !== TYPED) { toast('اضغط تطبيق للتحقق من كود الخصم أو امسحه', true); b.disabled = false; return; }
+    const { data, error } = await SB.rpc('create_order', { p_package: p.id, p_fields: vals, p_promo: code && code === TYPED ? code : null });
     if (error) { toast(/promo_/.test(error.message) ? 'كود الخصم لم يعد صالحًا' : 'تعذر إنشاء الطلب: ' + error.message, true); b.disabled = false; return; }
     location.hash = '#/pay/' + data.id;
   };
@@ -209,7 +210,7 @@ async function viewOrder(id) {
   navBar('orders'); const o = await getOrder(id); if (!o) return (location.hash = '#/orders');
   const f = o.field_values || {};
   app.innerHTML = `<div class="hd"><a class="ib" href="#/orders">${ic('back')}</a><h1>تفاصيل الطلب</h1></div>
-  <div class="card"><div class="kv"><span>رقم الطلب</span><span>${num(o.order_no)}</span></div><div class="kv"><span>الحالة</span><span>${badge(o.status)}</span></div><div class="kv"><span>الخدمة</span><span>${esc(o.service_name_ar)}</span></div><div class="kv"><span>الباقة</span><span>${esc(o.package_name_ar)}</span></div>${Object.entries(f).map(([k, v]) => `<div class="kv"><span>${esc(k)}</span><span>${num(v)}</span></div>`).join('')}${Number(o.discount) > 0 ? `<div class="kv"><span>كود الخصم ${esc(o.promo_code)}</span><span>- ${money(o.discount)}</span></div>` : ''}<div class="kv"><span>المبلغ</span><span>${money(o.total)}</span></div><div class="kv"><span>تاريخ الطلب</span><span>${num(dt(o.created_at))}</span></div></div>
+  <div class="card"><div class="kv"><span>رقم الطلب</span><span>${num(o.order_no)}</span></div><div class="kv"><span>الحالة</span><span>${badge(o.status)}</span></div><div class="kv"><span>الخدمة</span><span>${esc(o.service_name_ar)}</span></div><div class="kv"><span>الباقة</span><span>${esc(o.package_name_ar)}</span></div>${Object.entries(f).map(([k, v]) => `<div class="kv"><span>${esc(k)}</span><span>${num(v)}</span></div>`).join('')}${Number(o.discount) > 0 ? `<div class="kv"><span>${o.discount_source === 'account' ? 'خصم حسابك' : 'كود الخصم ' + esc(o.promo_code)}</span><span>- ${money(o.discount)}</span></div>` : ''}<div class="kv"><span>المبلغ</span><span>${money(o.total)}</span></div><div class="kv"><span>تاريخ الطلب</span><span>${num(dt(o.created_at))}</span></div></div>
   ${o.due_at && !['completed', 'cancelled'].includes(o.status) ? `<div class="card"><div class="sub" style="text-align:center">الوقت المتبقي للتنفيذ</div><div class="timer" id="tm"></div></div>` : ''}
   ${['awaiting_payment', 'proof_submitted'].includes(o.status) ? `<a class="btn" href="#/pay/${o.id}">${o.status === 'awaiting_payment' ? 'إكمال الدفع' : 'تعديل إثبات الدفع'}</a><div style="height:10px"></div>` : ''}
   <a class="btn o" target="_blank" rel="noopener" href="${waLink(o.order_no)}">${ic('support')} تواصل مع خدمة العملاء بخصوص هذا الطلب</a>`;
