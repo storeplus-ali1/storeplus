@@ -110,7 +110,7 @@ async function viewHome() {
   <div class="search">${ic('search', 20)}<input id="q" placeholder="ابحث عن خدمة..."></div>
   <div id="res"></div>
   <div class="sec"><b>أقسام الخدمات</b></div>
-  <div class="cats">${CATS.map((c) => `<a class="cat" href="#/cat/${c.id}"><i>${catArt(c.id)}</i>${esc(c.name_ar)}</a>`).join('')}</div>
+  <div class="cats">${CATS.map((c) => `<a class="cat" href="#/cat/${c.id}"><i>${c.image ? `<img src="${esc(c.image)}" alt="" style="width:58px;height:58px;object-fit:cover;border-radius:14px">` : catArt(c.id)}</i>${esc(c.name_ar)}</a>`).join('')}</div>
   <div class="sec"><b>العروض والخصومات المميزة</b></div>
   ${offers.length ? `<div class="hs">${offers.map((p) => { const s = SERVICES.find((x) => x.id === p.service_id); if (!s) return ''; const pc = Math.round((1 - p.price / p.old_price) * 100); return `<a class="offer" href="#/service/${s.id}"><small>خصم ${num(pc + '%')}</small><h3>${esc(s.name_ar)} – ${esc(p.name_ar)}</h3><div class="pr">${money(p.price)}<s>${money(p.old_price)}</s></div></a>`; }).join('')}</div>` : '<div class="empty">لا توجد عروض حاليًا</div>'}
   <div class="sec"><b>أحدث الخدمات المضافة</b></div><div class="hs">${latest.map(svcCard).join('')}</div>
@@ -174,7 +174,7 @@ async function getOrder(id) { const { data } = await SB.from('orders').select('*
 async function viewPay(id) {
   navBar('orders'); const o = await getOrder(id); if (!o) return (location.hash = '#/orders');
   SUPPORT_CTX = o.order_no; navBar('orders');
-  app.innerHTML = `<div class="hd"><a class="ib" href="#/orders">${ic('back')}</a><h1>الدفع عبر Vodafone Cash</h1></div>
+  app.innerHTML = `<div class="hd"><a class="ib" href="javascript:goBack()">${ic('back')}</a><h1>الدفع عبر Vodafone Cash</h1></div>
   <div class="card"><div class="kv"><span>الخدمة</span><span>${esc(o.service_name_ar)} – ${esc(o.package_name_ar)}</span></div><div class="kv"><span>رقم الطلب</span><span>${num(o.order_no)}</span></div><div class="sub" style="text-align:center;margin-top:8px">المبلغ المطلوب تحويله</div><div class="big">${money(o.total)}</div></div>
   <div class="card"><div class="sub">حوّل المبلغ إلى محفظة Vodafone Cash</div><div class="wallet" id="w" style="margin-top:8px"><span class="num">${esc(SETTINGS.wallet_number || '')}</span><span style="color:#38d9ff">${ic('copy')}</span></div><div class="sub" style="font-size:11px;margin-top:10px">1) افتح تطبيق المحفظة وحوّل المبلغ بالضبط. 2) ارجع هنا وارفع صورة الإيصال. 3) اكتب رقم العملية. لا تشارك الرقم السري أو كود OTP مع أحد، ولا يطلبهما التطبيق أبدًا.</div></div>
   ${o.status === 'awaiting_payment' || o.status === 'proof_submitted' ? `<div class="card"><span class="lbl" style="margin-top:0">صورة إيصال التحويل</span><label class="up" id="up"><input type="file" accept="image/*" id="file" hidden><span id="uph">${ic('upload', 26)}<br>اضغط لرفع صورة الإيصال</span></label><label class="lbl">رقم العملية / الرقم المرجعي</label><input class="in ltr" id="ref" inputmode="numeric" value="${esc(o.payment_ref || '')}"></div><button class="btn" id="send">إرسال إثبات الدفع</button>` : `<div class="card">${badge(o.status)}</div>`}`;
@@ -269,15 +269,25 @@ setInterval(async () => { if (ME) { await refreshUnread(); const d = $('.top .do
 boot();
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 
-function goBack() { if (history.length > 1) history.back(); else location.hash = '#/'; }
+function parentHash() {
+  const p = (location.hash.replace(/^#/, '') || '/').split('/').filter(Boolean);
+  if (!p.length) return null;
+  if (p[0] === 'pay') return SEL && SEL.sid ? '#/service/' + SEL.sid : '#/orders';
+  if (p[0] === 'order' && p.length === 3) return '#/service/' + p[1];
+  if (p[0] === 'order') return '#/orders';
+  if (p[0] === 'service') { const sv = SERVICES.find((x) => x.id == p[1]); return sv ? '#/cat/' + sv.category_id : '#/'; }
+  return '#/';
+}
+function goBack() { const t = parentHash(); location.hash = t || '#/'; }
 window.goBack = goBack;
 (function () {
   const CA = window.Capacitor && Capacitor.Plugins && Capacitor.Plugins.App;
   if (!CA || !Capacitor.isNativePlatform || !Capacitor.isNativePlatform()) return;
   CA.addListener('backButton', () => {
-    const h = location.hash.replace(/^#/, '');
-    if (h === '' || h === '/' || (document.querySelector('#nav') || {}).hidden) CA.exitApp();
-    else location.hash = '#/';
+    const upd = document.getElementById('upd'); if (upd) { window.__updDismissed = Number(SETTINGS.update_build || 0); upd.remove(); return; }
+    const t = parentHash();
+    if (!ME || (document.querySelector('#nav') || {}).hidden || !t) CA.exitApp();
+    else location.hash = t;
   });
 })();
 

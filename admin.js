@@ -241,12 +241,10 @@ async function vCats() {
   app.innerHTML = `${head('القوائم (الأقسام)')}
   <div class="card"><h2>قائمة جديدة</h2><label class="lbl">الاسم بالعربي</label><input class="in" id="cna"><label class="lbl">الاسم بالإنجليزي (اختياري)</label><input class="in ltr" id="cne"><button class="btn" id="cadd" style="margin-top:10px">إضافة القائمة</button></div>
   <div class="sec"><b>القوائم الحالية</b></div>
-  ${CATS.map((c) => `<div class="card" data-c="${c.id}"><label class="lbl">الاسم بالعربي</label><input class="in" data-f="name_ar" value="${esc(c.name_ar)}"><label class="lbl">الاسم بالإنجليزي</label><input class="in ltr" data-f="name_en" value="${esc(c.name_en || '')}">
+  ${CATS.map((c) => `<div class="card" data-c="${c.id}"><label class="lbl">صورة القائمة</label><div style="display:flex;align-items:center;gap:12px;margin:6px 0"><div style="width:64px;height:64px;border-radius:14px;overflow:hidden;background:#0c1d44;display:flex;align-items:center;justify-content:center">${c.image ? `<img src="${esc(c.image)}" alt="" style="width:64px;height:64px;object-fit:cover">` : `<span class="sub">بدون</span>`}</div><label class="btn s o" style="cursor:pointer;margin:0">${c.image ? 'تغيير الصورة' : 'رفع صورة'}<input type="file" class="cfile" accept="image/*" hidden></label>${c.image ? '<button class="btn s r crm">حذف الصورة</button>' : ''}</div><label class="lbl">الاسم بالعربي</label><input class="in" data-f="name_ar" value="${esc(c.name_ar)}"><label class="lbl">الاسم بالإنجليزي</label><input class="in ltr" data-f="name_en" value="${esc(c.name_en || '')}">
   <label class="lbl">الترتيب (رقم أصغر يظهر أولًا)</label><input class="in ltr" type="number" data-f="sort" value="${c.sort ?? 0}">
   <label class="chk"><input type="checkbox" data-f="active" ${c.active ? 'checked' : ''}> ظاهرة للعملاء</label>
-  <div class="kv"><span>عدد الخدمات فيها</span><span>${num(cnt(c.id))}</span></div>
-  <div class="sw" style="margin-top:8px"><button class="btn s csv">حفظ</button><a class="btn s o" href="#/services">الخدمات وصورها</a><button class="btn s r cdl">حذف</button></div></div>`).join('') || '<div class="empty">لا توجد قوائم</div>'}
-  <p class="sub">لتغيير صورة خدمة أو حذفها: افتح الخدمة من تبويب الخدمات.</p>`;
+  <div class="sw" style="margin-top:8px"><button class="btn s csv">حفظ</button><button class="btn s r cdl">حذف</button></div></div>`).join('') || '<div class="empty">لا توجد قوائم</div>'}`;
   $('#cadd').onclick = async () => {
     const n = $('#cna').value.trim(); if (!n) return toast('اكتب اسم القائمة', true);
     const mx = CATS.reduce((m, c) => Math.max(m, c.sort || 0), 0);
@@ -255,6 +253,23 @@ async function vCats() {
   };
   $$('.csv').forEach((b) => (b.onclick = async () => { const d = b.closest('[data-c]'), row = {}; d.querySelectorAll('[data-f]').forEach((i) => (row[i.dataset.f] = i.type === 'checkbox' ? i.checked : i.type === 'number' ? +i.value || 0 : i.value.trim())); if (!row.name_ar) return toast('الاسم مطلوب', true); const { error } = await SB.from('categories').update(row).eq('id', +d.dataset.c); if (error) return toast(error.message, true); toast('تم الحفظ'); vCats(); }));
   $$('.cdl').forEach((b) => (b.onclick = async () => { const d = b.closest('[data-c]'), id = +d.dataset.c, c = CATS.find((x) => x.id === id); if (cnt(id)) return toast('انقل أو احذف خدمات هذه القائمة أولًا (' + cnt(id) + ' خدمة)', true); if (!confirm('حذف القائمة ' + c.name_ar + '؟')) return; const { error } = await SB.from('categories').delete().eq('id', id); if (error) return toast(error.message, true); toast('تم الحذف'); vCats(); }));
+  $$('.cfile').forEach((inp) => (inp.onchange = async (e) => {
+    const f = e.target.files[0], id = +inp.closest('[data-c]').dataset.c; if (!f) return;
+    if (!/^image\//.test(f.type)) return toast('اختر ملف صورة', true);
+    toast('جاري رفع الصورة...');
+    try {
+      const bm = await createImageBitmap(f), k = Math.min(1, 600 / Math.max(bm.width, bm.height)), c = document.createElement('canvas');
+      c.width = Math.round(bm.width * k); c.height = Math.round(bm.height * k); c.getContext('2d').drawImage(bm, 0, 0, c.width, c.height);
+      const blob = await new Promise((r) => c.toBlob(r, 'image/jpeg', 0.85));
+      const path = `cat-${id}-${Date.now()}.jpg`;
+      const u = await SB.storage.from('service-images').upload(path, blob, { contentType: 'image/jpeg' });
+      if (u.error) throw u.error;
+      const url = SB.storage.from('service-images').getPublicUrl(path).data.publicUrl;
+      const { error } = await SB.from('categories').update({ image: url }).eq('id', id); if (error) throw error;
+      toast('تم تغيير صورة القائمة'); vCats();
+    } catch (err) { toast('تعذر رفع الصورة: ' + (err.message || err), true); }
+  }));
+  $$('.crm').forEach((b) => (b.onclick = async () => { const id = +b.closest('[data-c]').dataset.c; if (!confirm('حذف صورة القائمة؟')) return; const { error } = await SB.from('categories').update({ image: null }).eq('id', id); if (error) return toast(error.message, true); toast('تم حذف الصورة'); vCats(); }));
 }
 async function vPromos() {
   nav('settings'); loading(); await loadCat();
