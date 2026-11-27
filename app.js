@@ -252,7 +252,7 @@ async function route() {
   } catch (e) { console.error(e); app.innerHTML = '<div class="empty">حدث خطأ، حاول مرة أخرى</div>'; }
 }
 async function boot() {
-  try { const PN0 = window.Capacitor && Capacitor.Plugins && Capacitor.Plugins.PushNotifications; if (PN0 && Capacitor.isNativePlatform && Capacitor.isNativePlatform()) { const st0 = await PN0.checkPermissions(); if (st0.receive !== 'granted') await PN0.requestPermissions(); try { await PN0.createChannel({ id: 'default', name: 'Store Plus', description: 'إشعارات الطلبات والعروض', importance: 5, visibility: 1, sound: 'default', vibration: true }); } catch (e2) {} } } catch (e) { console.error(e); }
+  try { const PN0 = window.Capacitor && Capacitor.Plugins && Capacitor.Plugins.PushNotifications; if (PN0 && Capacitor.isNativePlatform && Capacitor.isNativePlatform()) { const st0 = await PN0.checkPermissions(); if (st0.receive !== 'granted') await PN0.requestPermissions(); try { await PN0.createChannel({ id: 'sp_alert', name: 'إشعارات متجر بلس', description: 'إشعارات الطلبات والعروض', importance: 5, vibration: true, visibility: 1 }); } catch (e2) {} } } catch (e) { console.error(e); }
   const { data: { session } } = await SB.auth.getSession();
   if (!session) { ME = null; return viewAuth(); }
   ME = await myProfile();

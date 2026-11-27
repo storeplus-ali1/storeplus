@@ -80,7 +80,7 @@ async function enablePush(quiet) {
     try {
       let st = await PN.checkPermissions(); if (st.receive !== 'granted') st = await PN.requestPermissions();
       if (st.receive !== 'granted') { T('لم يتم السماح بالإشعارات', true); return false; }
-      try { await PN.createChannel({ id: 'sp_sound', name: 'إشعارات متجر بلس', description: 'إشعارات الطلبات', importance: 5, sound: 'notify', vibration: true, visibility: 1 }); } catch (e) {}
+      try { await PN.createChannel({ id: 'sp_alert', name: 'إشعارات متجر بلس', description: 'إشعارات الطلبات والعروض', importance: 5, vibration: true, visibility: 1 }); } catch (e) {}
       await PN.removeAllListeners();
       PN.addListener('registration', async (t) => {
         const { data: { user } } = await SB.auth.getUser(); if (!user) return;
