@@ -277,20 +277,29 @@ function parentHash() {
   if (p[0] === 'pay') return SEL && SEL.sid ? '#/service/' + SEL.sid : '#/orders';
   if (p[0] === 'order' && p.length === 3) return '#/service/' + p[1];
   if (p[0] === 'order') return '#/orders';
+  if (p[0] === 'orders' || p[0] === 'notifications' || p[0] === 'account') return '#/';
   if (p[0] === 'service') { const sv = SERVICES.find((x) => x.id == p[1]); return sv ? '#/cat/' + sv.category_id : '#/'; }
   return '#/';
 }
 function goBack() { const t = parentHash(); location.hash = t || '#/'; }
 window.goBack = goBack;
+// One-step back: returns 'handled' when it went back one screen, 'exit' only on the home screen.
+window.__spBack = function () {
+  try {
+    const upd = document.getElementById('upd'); if (upd) { window.__updDismissed = Number(SETTINGS.update_build || 0); upd.remove(); return 'handled'; }
+    const spl = document.getElementById('splash'); if (spl) { spl.remove(); return 'handled'; }
+    if (!ME) { if (document.getElementById('t2') && document.getElementById('t2').classList.contains('on')) { viewAuth('login'); return 'handled'; } return 'exit'; }
+    const t = parentHash();
+    if (!t) return 'exit';
+    location.hash = t;
+    return 'handled';
+  } catch (e) { return 'exit'; }
+};
 (function () {
   const CA = window.Capacitor && Capacitor.Plugins && Capacitor.Plugins.App;
   if (!CA || !Capacitor.isNativePlatform || !Capacitor.isNativePlatform()) return;
-  CA.addListener('backButton', () => {
-    const upd = document.getElementById('upd'); if (upd) { window.__updDismissed = Number(SETTINGS.update_build || 0); upd.remove(); return; }
-    const t = parentHash();
-    if (!ME || (document.querySelector('#nav') || {}).hidden || !t) CA.exitApp();
-    else location.hash = t;
-  });
+  // Fallback only: MainActivity also intercepts back natively and calls window.__spBack.
+  CA.addListener('backButton', () => { if (window.__spBack() === 'exit') CA.exitApp(); });
 })();
 
 // ---------- sounds, splash, hop ----------

@@ -1,6 +1,7 @@
 package com.storeplus.app;
 
 import android.graphics.Color;
+import androidx.activity.OnBackPressedCallback;
 import android.os.Bundle;
 import android.view.View;
 import androidx.core.graphics.Insets;
@@ -13,6 +14,17 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(SpSound.class);
         super.onCreate(savedInstanceState);
+        // Native back/swipe: always ask the page to go back one screen; exit only from the home screen.
+        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                try {
+                    getBridge().getWebView().evaluateJavascript(
+                        "(function(){try{return window.__spBack?window.__spBack():'none'}catch(e){return 'none'}})()",
+                        v -> { if (v == null || !v.contains("handled")) moveTaskToBack(true); });
+                } catch (Throwable e) { moveTaskToBack(true); }
+            }
+        });
         // Keep content clear of system bars when the OS draws edge-to-edge (target SDK 35+ / Android 15+).
         View root = findViewById(android.R.id.content);
         root.setBackgroundColor(Color.parseColor("#050b1c"));
