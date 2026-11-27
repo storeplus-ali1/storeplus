@@ -32,7 +32,7 @@ jobs:
           PY
       - name: Admin app identity
         run: |
-          echo '{"appId":"com.storeplus.admin","appName":"تطبيق إدارة متجر بلس","webDir":"www","backgroundColor":"#050a1f","android":{"allowMixedContent":false}}' > capacitor.config.json
+          echo '{"appId":"com.storeplus.admin","appName":"إدارة متجر بلس","webDir":"www","backgroundColor":"#050a1f","android":{"allowMixedContent":false}}' > capacitor.config.json
           cat > package.json <<'JSON'
           {"name":"storeplus-admin","version":"1.0.0","private":true,"dependencies":{"@capacitor/android":"^6.1.2","@capacitor/cli":"^6.1.2","@capacitor/core":"^6.1.2","@capacitor/app":"^6.0.2","@capacitor/push-notifications":"^6.0.2"}}
           JSON
@@ -45,8 +45,8 @@ jobs:
           cp google-services-admin.json android/app/google-services.json
           R=android/app/src/main/res
           rm -f $R/mipmap-*/ic_launcher*.png $R/mipmap-anydpi-v26/ic_launcher*.xml
-          cp -r androidres/mipmap-* $R/
-          cp androidres/values/ic_launcher_background.xml $R/values/
+          cp -r androidres-admin/mipmap-* $R/
+          cp androidres-admin/values/ic_launcher_background.xml $R/values/
           mkdir -p $R/raw && cp androidres/raw/notify.mp3 $R/raw/
           for f in $(find $R -name splash.png); do cp androidres/splash.png $f; done
       - run: npx cap sync android
