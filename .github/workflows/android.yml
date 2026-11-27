@@ -60,8 +60,13 @@ jobs:
           rm -f $R/mipmap-*/ic_launcher*.png $R/mipmap-anydpi-v26/ic_launcher*.xml
           cp -r androidres/mipmap-* $R/
           cp androidres/values/ic_launcher_background.xml $R/values/
-          mkdir -p $R/raw && cp androidres/raw/notify.mp3 $R/raw/
+          mkdir -p $R/raw && cp androidres/raw/* $R/raw/
           for f in $(find $R -name splash.png); do cp androidres/splash.png $f; done
+      - name: Native system-volume sound plugin
+        run: |
+          D=android/app/src/main/java/com/storeplus/app
+          mkdir -p $D
+          cp native/SpSound.java native/MainActivity.java $D/
       - run: npx cap sync android
       - name: Stable signing key and increasing versionCode
         env:

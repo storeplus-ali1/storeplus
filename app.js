@@ -222,7 +222,6 @@ async function viewNotifs() {
   navBar('notif');
   const { data } = await SB.from('notifications').select('*').eq('user_id', ME.id).order('created_at', { ascending: false }).limit(60);
   app.innerHTML = `<div class="hd"><a class="ib" href="#/">${ic('back')}</a><h1>الإشعارات</h1></div><button class="btn o s" id="pushb" style="margin-bottom:12px">${ic('bell', 18)} تفعيل إشعارات الجهاز</button>${(data || []).map((n) => `<a class="nt ${n.read ? '' : 'un'}" href="${esc(n.url || '#/notifications')}" data-id="${n.id}"><div><b>${esc(n.title)}</b><p>${esc(n.body)}</p><small>${num(dt(n.created_at))}</small></div></a>`).join('') || '<div class="empty">لا توجد إشعارات</div>'}`;
-  { const sb = document.createElement('button'); sb.className = 'btn o'; sb.style.marginTop = '10px'; const lab = () => (sb.textContent = SND.on() ? 'الأصوات: مفعّلة (اضغط للإيقاف)' : 'الأصوات: متوقفة (اضغط للتفعيل)'); lab(); sb.onclick = () => { localStorage.setItem('sp_snd', SND.on() ? '0' : '1'); lab(); }; app.appendChild(sb); }
   $("#pushb").onclick = () => enablePush();
   $$('.nt').forEach((a) => (a.onclick = () => SB.from('notifications').update({ read: true }).eq('id', a.dataset.id)));
   await SB.from('notifications').update({ read: true }).eq('user_id', ME.id).eq('read', false); UNREAD = 0;
@@ -292,10 +291,11 @@ window.goBack = goBack;
 })();
 
 // ---------- sounds, splash, hop ----------
-const SND = { on: () => localStorage.getItem('sp_snd') !== '0', ctx: null };
+const SND = { ctx: null };
 function tone(f, t0, d, v) { try { const C = SND.ctx || (SND.ctx = new (window.AudioContext || window.webkitAudioContext)()); if (C.state === 'suspended') C.resume(); const o = C.createOscillator(), g = C.createGain(); o.type = 'sine'; o.frequency.value = f; g.gain.setValueAtTime(0.0001, C.currentTime + t0); g.gain.exponentialRampToValueAtTime(v, C.currentTime + t0 + 0.005); g.gain.exponentialRampToValueAtTime(0.0001, C.currentTime + t0 + d); o.connect(g); g.connect(C.destination); o.start(C.currentTime + t0); o.stop(C.currentTime + t0 + d + 0.02); } catch (e) {} }
-function clickSound() { if (SND.on()) tone(1100, 0, 0.05, 0.12); }
-function paidSound() { if (!SND.on()) return; tone(784, 0, 0.18, 0.3); tone(1047, 0.16, 0.18, 0.3); tone(1319, 0.32, 0.35, 0.3); setTimeout(() => { try { const au = new Audio('sounds/paid.mp3'); au.play().catch(() => {}); } catch (e) {} }, 750); }
+function nativeSnd(name) { try { const P = window.Capacitor && Capacitor.Plugins && Capacitor.Plugins.SpSound; if (P && Capacitor.isNativePlatform && Capacitor.isNativePlatform()) { P.play({ name }); return true; } } catch (e) {} return false; }
+function clickSound() { if (!nativeSnd('click')) tone(1100, 0, 0.05, 0.12); }
+function paidSound() { if (!nativeSnd('chime')) { tone(784, 0, 0.18, 0.3); tone(1047, 0.16, 0.18, 0.3); tone(1319, 0.32, 0.35, 0.3); } setTimeout(() => { if (nativeSnd('paid')) return; try { const au = new Audio('sounds/paid.mp3'); au.play().catch(() => {}); } catch (e) {} }, 750); }
 document.addEventListener('click', (e) => { if (e.target.closest && e.target.closest('button,a,.row,.svc,.btn,.nav,label.up,[role=button]')) clickSound(); }, true);
 (function splash() {
   const d = document.createElement('div'); d.id = 'splash';
