@@ -117,6 +117,7 @@ async function vSvc(id) {
   const s = SVCS.find((x) => x.id == id); if (!s) return (location.hash = '#/services');
   const ps = PKGS.filter((p) => p.service_id == id);
   app.innerHTML = `${head(esc(s.name_ar), '#/services')}
+  <div class="card"><label class="lbl">صورة الخدمة</label><img id="simg" src="${esc(s.image || 'logo.png')}" style="width:100%;max-height:180px;object-fit:cover;border-radius:12px;margin:6px 0"><label class="btn o" style="display:block;text-align:center;cursor:pointer">اختيار صورة جديدة<input type="file" id="sfile" accept="image/*" hidden></label><div class="sub" id="smsg"></div></div>
   <div class="card"><label class="lbl">الاسم بالعربي</label><input class="in" id="na" value="${esc(s.name_ar)}"><label class="lbl">الاسم بالإنجليزي</label><input class="in ltr" id="ne" value="${esc(s.name_en)}">
   <label class="lbl">الوصف</label><textarea class="in" id="ds">${esc(s.description_ar)}</textarea>
   <label class="lbl">القسم</label><select class="in" id="ct">${CATS.map((c) => `<option value="${c.id}" ${c.id === s.category_id ? 'selected' : ''}>${esc(c.name_ar)}</option>`).join('')}</select>
@@ -128,6 +129,22 @@ async function vSvc(id) {
   <label class="chk"><input type="checkbox" data-f="active" ${p.active ? 'checked' : ''}> ظاهرة</label><button class="btn s o psv">حفظ الباقة</button></div>`).join('')}
   <button class="btn o" id="addP">${ic('plus', 18)} باقة جديدة</button><button class="btn r" id="sdel" style="margin-top:24px">حذف الخدمة نهائياً</button>`;
   $('#sdel').onclick = async () => { if (!confirm('حذف خدمة ' + s.name_ar + ' وكل باقاتها نهائياً؟ الطلبات القديمة تبقى محفوظة بأسمائها.')) return; const { data, error } = await SB.rpc('admin_delete_service', { p_id: +id }); if (error) return toast(error.message, true); toast('تم حذف الخدمة وباقاتها' + (data ? ' (الطلبات المرتبطة: ' + data + ')' : '')); location.hash = '#/services'; };
+  $('#sfile').onchange = async (e) => {
+    const f = e.target.files[0]; if (!f) return;
+    if (!/^image\//.test(f.type)) return toast('اختر ملف صورة', true);
+    $('#smsg').textContent = 'جاري رفع الصورة...';
+    try {
+      const bm = await createImageBitmap(f), k = Math.min(1, 900 / Math.max(bm.width, bm.height)), c = document.createElement('canvas');
+      c.width = Math.round(bm.width * k); c.height = Math.round(bm.height * k); c.getContext('2d').drawImage(bm, 0, 0, c.width, c.height);
+      const blob = await new Promise((r) => c.toBlob(r, 'image/jpeg', 0.85));
+      const path = `svc-${id}-${Date.now()}.jpg`;
+      const u = await SB.storage.from('service-images').upload(path, blob, { contentType: 'image/jpeg' });
+      if (u.error) throw u.error;
+      const url = SB.storage.from('service-images').getPublicUrl(path).data.publicUrl;
+      const { error } = await SB.from('services').update({ image: url }).eq('id', id); if (error) throw error;
+      $('#simg').src = url; $('#smsg').textContent = ''; toast('تم تغيير الصورة');
+    } catch (err) { $('#smsg').textContent = ''; toast('تعذر رفع الصورة: ' + (err.message || err), true); }
+  };
   $('#sv').onclick = async () => { const { error } = await SB.from('services').update({ name_ar: $('#na').value, name_en: $('#ne').value, description_ar: $('#ds').value, category_id: +$('#ct').value, active: $('#ac').checked, featured: $('#ft').checked }).eq('id', id); toast(error ? error.message : 'تم الحفظ', !!error); };
   $$('.psv').forEach((b) => (b.onclick = async () => { const c = b.closest('[data-p]'), v = {}; $$('[data-f]', c).forEach((i) => (v[i.dataset.f] = i.type === 'checkbox' ? i.checked : i.dataset.f === 'name_ar' ? i.value : i.value === '' ? null : +i.value)); const { error } = await SB.from('packages').update(v).eq('id', c.dataset.p); toast(error ? error.message : 'تم حفظ الباقة', !!error); }));
   $('#addP').onclick = async () => { const n = prompt('اسم الباقة'); const pr = +prompt('السعر بالجنيه المصري'); if (!n || !(pr >= 0)) return; const { error } = await SB.from('packages').insert({ service_id: +id, name_ar: n, price: pr }); if (error) return toast(error.message, true); vSvc(id); };
