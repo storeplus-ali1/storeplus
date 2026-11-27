@@ -93,7 +93,7 @@ async function vOrder(id) {
   app.innerHTML = `${head('تفاصيل الطلب', '#/orders')}
   <div class="card"><div class="kv"><span>رقم الطلب</span><span>${num(o.order_no)}</span></div><div class="kv"><span>الحالة</span><span>${badge(o.status)}</span></div>
   <div class="kv"><span>الخدمة</span><span>${esc(o.service_name_ar)}</span></div><div class="kv"><span>الباقة</span><span>${esc(o.package_name_ar)}</span></div>
-  <div class="kv"><span>الإجمالي</span><span>${money(o.total)}</span></div><div class="kv"><span>تاريخ الطلب</span><span>${num(dt(o.created_at))}</span></div>
+  ${Number(o.discount) > 0 ? `<div class="kv"><span>السعر قبل الكود</span><span>${money(o.price)}</span></div><div class="kv"><span>كود الخصم ${esc(o.promo_code)}</span><span>- ${money(o.discount)}</span></div>` : ''}<div class="kv"><span>الإجمالي</span><span>${money(o.total)}</span></div><div class="kv"><span>تاريخ الطلب</span><span>${num(dt(o.created_at))}</span></div>
   ${o.due_at ? `<div class="kv"><span>موعد التنفيذ المتوقع</span><span>${num(dt(o.due_at))}</span></div>` : ''}</div>
   <div class="card"><b>العميل</b><div class="kv"><span>الاسم</span><span>${esc(u?.full_name)}</span></div><div class="kv"><span>الهاتف</span><span>${num(u?.phone)}</span></div><div class="kv"><span>البريد</span><span class="ltr">${esc(u?.email)}</span></div></div>
   ${fv.length ? `<div class="card"><b>بيانات الطلب</b>${fv.map(([k, v]) => `<div class="kv"><span>${esc(k)}</span><span class="ltr">${esc(v)}</span></div>`).join('')}</div>` : ''}
@@ -199,10 +199,61 @@ async function vSettings() {
   nav('settings'); const S = await getSettings();
   const f = [['wallet_number', 'رقم محفظة فودافون كاش'], ['support_whatsapp', 'رقم واتساب خدمة العملاء (بالصيغة الدولية)'], ['execution_hours', 'مدة التنفيذ بالساعات']];
   app.innerHTML = `${head('الإعدادات')}<div class="card">${f.map(([k, l]) => `<label class="lbl">${l}</label><input class="in ltr" data-k="${k}" value="${esc(S[k])}">`).join('')}<button class="btn" id="sv" style="margin-top:14px">حفظ الإعدادات</button></div>
-  <a class="btn o" href="#/audit" style="margin-bottom:10px">سجل العمليات</a><button class="btn r" id="out">تسجيل الخروج</button>`;
+  <a class="btn o" href="#/promos" style="margin-bottom:10px">أكواد الخصم</a><a class="btn o" href="#/update" style="margin-bottom:10px">تنبيه تحديث التطبيق</a><a class="btn o" href="#/audit" style="margin-bottom:10px">سجل العمليات</a><button class="btn r" id="out">تسجيل الخروج</button>`;
   $('#sv').onclick = async () => { for (const i of $$('[data-k]')) { const { error } = await SB.from('settings').upsert({ key: i.dataset.k, value: i.value.trim(), updated_at: new Date().toISOString() }); if (error) return toast(error.message, true); } toast('تم حفظ الإعدادات'); };
   $('#out').onclick = async () => { await SB.auth.signOut(); ME = null; viewLogin(); };
 }
+async function vPromos() {
+  nav('settings'); loading();
+  const [{ data: cs }, { data: os }] = await Promise.all([SB.from('promo_codes').select('*').order('created_at', { ascending: false }), SB.from('orders').select('promo_code,status').not('promo_code', 'is', null)]);
+  const used = {}; (os || []).filter((o) => !['cancelled', 'rejected'].includes(o.status)).forEach((o) => (used[o.promo_code] = (used[o.promo_code] || 0) + 1));
+  const val = (c) => (c.kind === 'percent' ? num(Number(c.value) + '%') : money(c.value));
+  app.innerHTML = `${head('أكواد الخصم', '#/settings')}
+  <div class="card"><h2>كود جديد</h2>
+  <label class="lbl">الكود (حروف إنجليزية وأرقام)</label><input class="in ltr" id="pcode" maxlength="32" autocapitalize="characters" style="text-transform:uppercase">
+  <label class="lbl">نوع الخصم</label><select class="in" id="pk"><option value="percent">نسبة مئوية %</option><option value="fixed">مبلغ ثابت بالجنيه</option></select>
+  <label class="lbl">قيمة الخصم</label><input class="in ltr" id="pv" type="number" min="1" step="any" inputmode="decimal">
+  <label class="lbl">أقصى عدد استخدامات (اتركه فارغًا لغير محدود)</label><input class="in ltr" id="pm" type="number" min="1" inputmode="numeric">
+  <label class="lbl">عدد مرات الاستخدام لكل عميل</label><input class="in ltr" id="pu" type="number" min="1" value="1" inputmode="numeric">
+  <label class="lbl">أقل سعر باقة (اختياري)</label><input class="in ltr" id="pn" type="number" min="0" inputmode="decimal">
+  <label class="lbl">تاريخ الانتهاء (اختياري)</label><input class="in ltr" id="pe" type="date">
+  <button class="btn" id="padd" style="margin-top:12px">إضافة الكود</button></div>
+  <div class="sec"><b>الأكواد الحالية</b></div>
+  ${(cs || []).map((c) => `<div class="card"><b class="ltr">${esc(c.code)}</b> <span class="badge ${c.active ? 'g' : 'r'}">${c.active ? 'مفعّل' : 'متوقف'}</span>
+  <div class="kv"><span>الخصم</span><span>${val(c)}</span></div><div class="kv"><span>الاستخدامات</span><span>${num(used[c.code] || 0)}${c.max_uses ? ' / ' + num(c.max_uses) : ''}</span></div>
+  <div class="kv"><span>لكل عميل</span><span>${num(c.per_user_limit)}</span></div>${Number(c.min_total) > 0 ? `<div class="kv"><span>أقل سعر باقة</span><span>${money(c.min_total)}</span></div>` : ''}${c.expires_at ? `<div class="kv"><span>ينتهي</span><span>${num(dt(c.expires_at))}</span></div>` : ''}
+  <div class="sw" style="margin-top:8px"><button class="btn s o ptg" data-i="${c.id}" data-a="${c.active}">${c.active ? 'إيقاف' : 'تفعيل'}</button><button class="btn s r pdl" data-i="${c.id}" data-c="${esc(c.code)}">حذف</button></div></div>`).join('') || '<div class="empty">لا توجد أكواد بعد</div>'}`;
+  $('#padd').onclick = async () => {
+    const code = $('#pcode').value.trim().toUpperCase(), v = +$('#pv').value, k = $('#pk').value;
+    if (!/^[A-Z0-9_-]{2,32}$/.test(code)) return toast('الكود حروف إنجليزية وأرقام فقط', true);
+    if (!(v > 0) || (k === 'percent' && v > 100)) return toast('قيمة الخصم غير صحيحة', true);
+    const row = { code, kind: k, value: v, per_user_limit: +$('#pu').value || 1, min_total: +$('#pn').value || 0, max_uses: $('#pm').value ? +$('#pm').value : null, expires_at: $('#pe').value ? new Date($('#pe').value + 'T23:59:59').toISOString() : null };
+    if (!confirm(`إضافة الكود ${code} بخصم ${k === 'percent' ? v + '%' : v + ' جنيه'}؟`)) return;
+    const { error } = await SB.from('promo_codes').insert(row); if (error) return toast(/duplicate|unique/.test(error.message) ? 'الكود موجود بالفعل' : error.message, true);
+    toast('تمت إضافة الكود'); vPromos();
+  };
+  $$('.ptg').forEach((b) => (b.onclick = async () => { const { error } = await SB.from('promo_codes').update({ active: b.dataset.a !== 'true' }).eq('id', +b.dataset.i); if (error) return toast(error.message, true); vPromos(); }));
+  $$('.pdl').forEach((b) => (b.onclick = async () => { if (!confirm('حذف الكود ' + b.dataset.c + '؟ الطلبات القديمة تبقى كما هي.')) return; const { error } = await SB.from('promo_codes').delete().eq('id', +b.dataset.i); if (error) return toast(error.message, true); vPromos(); }));
+}
+
+async function vUpdate() {
+  nav('settings'); const S = await getSettings();
+  app.innerHTML = `${head('تنبيه تحديث التطبيق', '#/settings')}<div class="card">
+  <p class="sub">بعد نشر نسخة جديدة، اكتب رقمها هنا. العملاء اللي نسختهم أقدم هتظهر لهم نافذة التحديث على الشاشة الرئيسية. لإيقاف التنبيه اكتب 0.</p>
+  <label class="lbl">رقم النسخة الجديدة</label><input class="in ltr" id="ub" type="number" min="0" inputmode="numeric" value="${esc(S.update_build || 0)}">
+  <label class="lbl">عنوان النافذة</label><input class="in" id="ut" maxlength="60" value="${esc(S.update_title || 'يتوفر تحديث جديد')}">
+  <label class="lbl">نص النافذة</label><textarea class="in" id="ux" maxlength="300">${esc(S.update_text || '')}</textarea>
+  <label class="lbl">رابط التحديث (المتجر أو رابط التحميل)</label><input class="in ltr" id="ul" value="${esc(S.update_url || '')}">
+  <button class="btn" id="usv" style="margin-top:14px">حفظ ونشر التنبيه</button></div>`;
+  $('#usv').onclick = async () => {
+    const b = Math.max(0, parseInt($('#ub').value, 10) || 0), u = $('#ul').value.trim();
+    if (b > 0 && !/^https:\/\//.test(u)) return toast('الرابط لازم يبدأ بـ https://', true);
+    if (!confirm(b ? `نشر تنبيه التحديث للنسخة ${b}؟ هيظهر للعملاء اللي نسختهم أقدم.` : 'إيقاف تنبيه التحديث؟')) return;
+    for (const [k, v] of [['update_build', String(b)], ['update_title', $('#ut').value.trim()], ['update_text', $('#ux').value.trim()], ['update_url', u]]) { const { error } = await SB.from('settings').upsert({ key: k, value: v, updated_at: new Date().toISOString() }); if (error) return toast(error.message, true); }
+    toast('تم الحفظ');
+  };
+}
+
 async function vAudit() {
   nav('settings'); loading();
   const { data } = await SB.from('audit_log').select('*').order('created_at', { ascending: false }).limit(100);
@@ -216,7 +267,7 @@ function route() {
   if (!ME) return viewLogin();
   const p = (location.hash.replace(/^#/, '') || '/dash').split('/').filter(Boolean);
   const k = p[0] || 'dash';
-  ({ dash: vDash, orders: vOrders, order: () => vOrder(p[1]), services: vServices, svc: () => vSvc(p[1]), customers: vCustomers, notify: vNotify, settings: vSettings, audit: vAudit }[k] || vDash)();
+  ({ dash: vDash, orders: vOrders, order: () => vOrder(p[1]), services: vServices, svc: () => vSvc(p[1]), customers: vCustomers, notify: vNotify, settings: vSettings, promos: vPromos, update: vUpdate, audit: vAudit }[k] || vDash)();
 }
 window.addEventListener('hashchange', route);
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});

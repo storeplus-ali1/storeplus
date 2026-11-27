@@ -7,6 +7,7 @@ on:
         default: 'test'
   push:
     branches: [main]
+    paths-ignore: ['admin.js','admin.html','docs/**','fn/**','.github/workflows/android-admin.yml','.github/workflows/backup.yml']
 permissions:
   contents: write
 jobs:
@@ -35,6 +36,7 @@ jobs:
             APPID='ca-app-pub-3940256099942544~3347511713'; B='ca-app-pub-3940256099942544/6300978111'; I='ca-app-pub-3940256099942544/1033173712'; T=true
           fi
           echo "window.ADS_CONFIG={test:$T,banner:'$B',interstitial:'$I'};" > www/ads-config.js
+          echo "window.APP_BUILD=${{ github.run_number }};" >> www/ads-config.js
           echo "$APPID" > admob_app_id.txt
           echo "ASSET=StorePlus-$MODE-ads.apk" >> $GITHUB_ENV
       - run: npm install
@@ -60,16 +62,33 @@ jobs:
           cp androidres/values/ic_launcher_background.xml $R/values/
           for f in $(find $R -name splash.png); do cp androidres/splash.png $f; done
       - run: npx cap sync android
-      - name: Build debug APK
+      - name: Stable signing key and increasing versionCode
+        env:
+          KS_B64: ${{ secrets.CUSTOMER_KEYSTORE_B64 }}
+          KS_PASS: ${{ secrets.CUSTOMER_KEYSTORE_PASSWORD }}
+          RUN_NO: ${{ github.run_number }}
+        run: |
+          test -n "$KS_B64" && test -n "$KS_PASS"
+          echo "$KS_B64" | base64 -d > android/app/customer.keystore
+          python3 ci/patch_customer_gradle.py
+      - name: Build signed release APK
         working-directory: android
-        run: ./gradlew assembleDebug --no-daemon
+        env:
+          KS_PASS: ${{ secrets.CUSTOMER_KEYSTORE_PASSWORD }}
+        run: ./gradlew assembleRelease --no-daemon
+      - name: Verify signature and version
+        run: |
+          APK=$(ls android/app/build/outputs/apk/release/*.apk | head -1)
+          AS=$(ls $ANDROID_HOME/build-tools/*/apksigner | tail -1)
+          $AS verify --print-certs $APK | grep -E "SHA-256|Verifies"
+          $ANDROID_HOME/build-tools/$(ls $ANDROID_HOME/build-tools | tail -1)/aapt dump badging $APK | grep -E "package:|application-label:"
       - name: Publish APK as a release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          cp android/app/build/outputs/apk/debug/app-debug.apk $ASSET
+          cp android/app/build/outputs/apk/release/*.apk $ASSET
           gh release delete latest-$ASSET --yes --cleanup-tag || true
-          gh release create latest-$ASSET $ASSET --title "Store Plus APK" --notes "Latest build"
+          gh release create latest-$ASSET $ASSET --title "Store Plus APK" --notes "Build ${{ github.run_number }}"
       - uses: actions/upload-artifact@v4
         with:
           name: StorePlus-apk

@@ -1,4 +1,4 @@
-const C='sp-v4';
+const C='sp-v5';
 self.addEventListener('install',e=>{self.skipWaiting()});
 self.addEventListener('activate',e=>{e.waitUntil(clients.claim())});
 self.addEventListener('push',e=>{
