@@ -235,7 +235,9 @@ async function vSettings() {
   $('#out').onclick = async () => { await SB.auth.signOut(); ME = null; viewLogin(); };
 }
 async function vPromos() {
-  nav('settings'); loading();
+  nav('settings'); loading(); await loadCat();
+  const chk = (cls, sel) => (SVCS || []).map((s) => `<label style="display:flex;gap:8px;align-items:center;padding:6px 0"><input type="checkbox" class="${cls}" value="${s.id}" ${sel && sel.includes(s.id) ? 'checked' : ''}> ${esc(s.name_ar)}</label>`).join('');
+  const pick = (cls) => { const all = $$('.' + cls), on = [...all].filter((x) => x.checked).map((x) => +x.value); return on.length === 0 || on.length === all.length ? null : on; };
   const [{ data: cs }, { data: os }] = await Promise.all([SB.from('promo_codes').select('*').order('created_at', { ascending: false }), SB.from('orders').select('promo_code,status').not('promo_code', 'is', null)]);
   const used = {}; (os || []).filter((o) => !['cancelled', 'rejected'].includes(o.status)).forEach((o) => (used[o.promo_code] = (used[o.promo_code] || 0) + 1));
   const val = (c) => (c.kind === 'percent' ? num(Number(c.value) + '%') : money(c.value));
@@ -248,21 +250,25 @@ async function vPromos() {
   <label class="lbl">عدد مرات الاستخدام لكل عميل</label><input class="in ltr" id="pu" type="number" min="1" value="1" inputmode="numeric">
   <label class="lbl">أقل سعر باقة (اختياري)</label><input class="in ltr" id="pn" type="number" min="0" inputmode="decimal">
   <label class="lbl">تاريخ الانتهاء (اختياري)</label><input class="in ltr" id="pe" type="date">
+  <label class="lbl">الخدمات المشمولة (بدون تحديد أو تحديد الكل = كل الخدمات)</label><div class="card" style="padding:8px 12px">${chk('psv', [])}</div>
   <button class="btn" id="padd" style="margin-top:12px">إضافة الكود</button></div>
   <div class="sec"><b>الأكواد الحالية</b></div>
   ${(cs || []).map((c) => `<div class="card"><b class="ltr">${esc(c.code)}</b> <span class="badge ${c.active ? 'g' : 'r'}">${c.active ? 'مفعّل' : 'متوقف'}</span>
   <div class="kv"><span>الخصم</span><span>${val(c)}</span></div><div class="kv"><span>الاستخدامات</span><span>${num(used[c.code] || 0)}${c.max_uses ? ' / ' + num(c.max_uses) : ''}</span></div>
+  <div class="kv"><span>الخدمات</span><span>${c.service_ids && c.service_ids.length ? esc(c.service_ids.map((i) => ((SVCS || []).find((s) => s.id === i) || {}).name_ar || i).join('، ')) : 'كل الخدمات'}</span></div>
   <div class="kv"><span>لكل عميل</span><span>${num(c.per_user_limit)}</span></div>${Number(c.min_total) > 0 ? `<div class="kv"><span>أقل سعر باقة</span><span>${money(c.min_total)}</span></div>` : ''}${c.expires_at ? `<div class="kv"><span>ينتهي</span><span>${num(dt(c.expires_at))}</span></div>` : ''}
-  <div class="sw" style="margin-top:8px"><button class="btn s o ptg" data-i="${c.id}" data-a="${c.active}">${c.active ? 'إيقاف' : 'تفعيل'}</button><button class="btn s r pdl" data-i="${c.id}" data-c="${esc(c.code)}">حذف</button></div></div>`).join('') || '<div class="empty">لا توجد أكواد بعد</div>'}`;
+  <div class="sw" style="margin-top:8px"><button class="btn s o ptg" data-i="${c.id}" data-a="${c.active}">${c.active ? 'إيقاف' : 'تفعيل'}</button><button class="btn s o psb" data-i="${c.id}">الخدمات</button><button class="btn s r pdl" data-i="${c.id}" data-c="${esc(c.code)}">حذف</button></div><div class="card" id="pp${c.id}" style="display:none;margin-top:8px;padding:8px 12px">${chk('pse' + c.id, c.service_ids || [])}<button class="btn s pss" data-i="${c.id}" style="margin-top:8px">حفظ الخدمات</button></div></div>`).join('') || '<div class="empty">لا توجد أكواد بعد</div>'}`;
   $('#padd').onclick = async () => {
     const code = $('#pcode').value.trim().toUpperCase(), v = +$('#pv').value, k = $('#pk').value;
     if (!/^[A-Z0-9_-]{2,32}$/.test(code)) return toast('الكود حروف إنجليزية وأرقام فقط', true);
     if (!(v > 0) || (k === 'percent' && v > 100)) return toast('قيمة الخصم غير صحيحة', true);
-    const row = { code, kind: k, value: v, per_user_limit: +$('#pu').value || 1, min_total: +$('#pn').value || 0, max_uses: $('#pm').value ? +$('#pm').value : null, expires_at: $('#pe').value ? new Date($('#pe').value + 'T23:59:59').toISOString() : null };
-    if (!confirm(`إضافة الكود ${code} بخصم ${k === 'percent' ? v + '%' : v + ' جنيه'}؟`)) return;
+    const row = { code, kind: k, value: v, per_user_limit: +$('#pu').value || 1, min_total: +$('#pn').value || 0, service_ids: pick('psv'), max_uses: $('#pm').value ? +$('#pm').value : null, expires_at: $('#pe').value ? new Date($('#pe').value + 'T23:59:59').toISOString() : null };
+    if (!confirm(`إضافة الكود ${code} بخصم ${k === 'percent' ? v + '%' : v + ' جنيه'}${row.service_ids ? ' على ' + num(row.service_ids.length) + ' خدمة فقط' : ' على كل الخدمات'}؟`)) return;
     const { error } = await SB.from('promo_codes').insert(row); if (error) return toast(/duplicate|unique/.test(error.message) ? 'الكود موجود بالفعل' : error.message, true);
     toast('تمت إضافة الكود'); vPromos();
   };
+  $$('.psb').forEach((b) => (b.onclick = () => { const e = $('#pp' + b.dataset.i); e.style.display = e.style.display === 'none' ? 'block' : 'none'; }));
+  $$('.pss').forEach((b) => (b.onclick = async () => { const ids = pick('pse' + b.dataset.i); const { error } = await SB.from('promo_codes').update({ service_ids: ids }).eq('id', +b.dataset.i); if (error) return toast(error.message, true); toast(ids ? 'تم حفظ الخدمات' : 'الكود يشمل كل الخدمات'); vPromos(); }));
   $$('.ptg').forEach((b) => (b.onclick = async () => { const { error } = await SB.from('promo_codes').update({ active: b.dataset.a !== 'true' }).eq('id', +b.dataset.i); if (error) return toast(error.message, true); vPromos(); }));
   $$('.pdl').forEach((b) => (b.onclick = async () => { if (!confirm('حذف الكود ' + b.dataset.c + '؟ الطلبات القديمة تبقى كما هي.')) return; const { error } = await SB.from('promo_codes').delete().eq('id', +b.dataset.i); if (error) return toast(error.message, true); vPromos(); }));
 }

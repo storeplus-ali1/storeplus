@@ -150,7 +150,7 @@ function viewOrderForm(sid, pid) {
   <div class="card" id="pc"></div>
   <div class="sub" style="margin-bottom:10px">سيظهر رقم الطلب بعد الإنشاء.</div><button class="btn" id="b">إنشاء الطلب والانتقال للدفع</button></form>`;
   let PR = null, TYPED = '';
-  const PERR = { invalid: 'كود الخصم غير صحيح', expired: 'كود الخصم منتهي', exhausted: 'تم استنفاد هذا الكود', user_limit: 'استخدمت هذا الكود من قبل', min_total: 'الباقة أقل من الحد الأدنى للكود', package_unavailable: 'الباقة غير متاحة' };
+  const PERR = { invalid: 'كود الخصم غير صحيح', expired: 'كود الخصم منتهي', exhausted: 'تم استنفاد هذا الكود', user_limit: 'استخدمت هذا الكود من قبل', min_total: 'الباقة أقل من الحد الأدنى للكود', package_unavailable: 'الباقة غير متاحة', service_not_eligible: 'هذا الكود لا ينطبق على هذه الخدمة' };
   const drawPrice = () => { const d = PR ? Number(PR.discount) : 0, old = Number(p.old_price || 0); $('#pc').innerHTML = `${p.old_price ? `<div class="kv"><span>السعر الأصلي</span><span>${money(p.old_price)}</span></div><div class="kv"><span>قيمة الخصم</span><span>- ${money(p.old_price - p.price)}</span></div>` : ''}${PR && d > 0 ? `<div class="kv"><span>${PR.source === 'account' ? 'خصم حسابك' : 'كود الخصم ' + esc(PR.code)}</span><span style="color:#37e08f">- ${money(d)}</span></div>` : ''}<div class="kv"><span>السعر النهائي</span><span style="color:#38d9ff;font-size:16px;font-weight:700">${money(Number(p.price) - d)}</span></div><div class="kv"><span>مدة التنفيذ</span><span>${num(SETTINGS.execution_hours || 24)} ساعة بعد تأكيد الدفع</span></div><div class="kv"><span>طريقة الدفع</span><span>Vodafone Cash</span></div>`; };
   const base = async () => { const { data } = await SB.rpc('validate_promo', { p_code: '', p_package: p.id }); PR = data && data.ok && Number(data.discount) > 0 ? data : null; drawPrice(); };
   drawPrice(); base();
@@ -166,7 +166,7 @@ function viewOrderForm(sid, pid) {
     e.preventDefault(); const b = $('#b'); b.disabled = true; const vals = Object.fromEntries(new FormData(e.target));
     const code = $('#promo').value.trim(); if (code && code !== TYPED) { toast('اضغط تطبيق للتحقق من كود الخصم أو امسحه', true); b.disabled = false; return; }
     const { data, error } = await SB.rpc('create_order', { p_package: p.id, p_fields: vals, p_promo: code && code === TYPED ? code : null });
-    if (error) { toast(/promo_/.test(error.message) ? 'كود الخصم لم يعد صالحًا' : 'تعذر إنشاء الطلب: ' + error.message, true); b.disabled = false; return; }
+    if (error) { toast(/promo_service_not_eligible/.test(error.message) ? 'هذا الكود لا ينطبق على هذه الخدمة' : /promo_/.test(error.message) ? 'كود الخصم لم يعد صالحًا' : 'تعذر إنشاء الطلب: ' + error.message, true); b.disabled = false; return; }
     location.hash = '#/pay/' + data.id;
   };
 }
