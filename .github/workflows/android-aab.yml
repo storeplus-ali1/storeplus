@@ -1,0 +1,104 @@
+name: Build Play AAB
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  aab:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - name: Prepare web files
+        run: |
+          mkdir www
+          cp ads.js www/ads.js
+          cp -r index.html app.js common.js style.css manifest.json sw.js supabase.js logo.png icons img brands sounds www/
+      - name: Ads config
+        run: |
+          MODE=real
+          if [ "$MODE" = "real" ]; then
+            APPID='ca-app-pub-1036618994904808~7606603130'; B='ca-app-pub-1036618994904808/6293521467'; I='ca-app-pub-1036618994904808/3360236363'; T=false
+          else
+            APPID='ca-app-pub-3940256099942544~3347511713'; B='ca-app-pub-3940256099942544/6300978111'; I='ca-app-pub-3940256099942544/1033173712'; T=true
+          fi
+          echo "window.ADS_CONFIG={test:$T,banner:'$B',interstitial:'$I'};" > www/ads-config.js
+          echo "window.APP_BUILD=999999;" >> www/ads-config.js
+          echo "$APPID" > admob_app_id.txt
+          echo "ASSET=StorePlus-play.aab" >> $GITHUB_ENV
+      - run: npm install
+      - run: npx cap add android
+      - name: Android permissions and icon
+        run: |
+          M=android/app/src/main/AndroidManifest.xml
+          sed -i 's#<application#<uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>\n    <application#' $M
+          python3 - <<'PY'
+          import re
+          m='android/app/src/main/AndroidManifest.xml'
+          t=open(m).read()
+          aid=open('admob_app_id.txt').read().strip()
+          t=t.replace('</application>','<meta-data android:name="com.google.android.gms.ads.APPLICATION_ID" android:value="%s"/></application>'%aid)
+          open(m,'w').write(t)
+          PY
+          if [ -f google-services.json ]; then cp google-services.json android/app/google-services.json; fi
+      - name: Launcher icons and splash
+        run: |
+          R=android/app/src/main/res
+          rm -f $R/mipmap-*/ic_launcher*.png $R/mipmap-anydpi-v26/ic_launcher*.xml
+          cp -r androidres/mipmap-* $R/
+          cp androidres/values/ic_launcher_background.xml $R/values/
+          mkdir -p $R/raw && cp androidres/raw/* $R/raw/
+          for f in $(find $R -name splash.png); do cp androidres/splash.png $f; done
+      - name: Native system-volume sound plugin
+        run: |
+          D=android/app/src/main/java/com/storeplus/app
+          mkdir -p $D
+          cp native/SpSound.java native/MainActivity.java native/SpMessagingService.java $D/
+          python3 ci/patch_manifest_service.py
+      - run: npx cap sync android
+      - name: Target SDK 36 toolchain
+        run: |
+          cd android
+          sed -i -E 's/compileSdkVersion = [0-9]+/compileSdkVersion = 36/; s/targetSdkVersion = [0-9]+/targetSdkVersion = 36/' variables.gradle
+          sed -i -E "s#com.android.tools.build:gradle:[0-9.]+#com.android.tools.build:gradle:8.9.1#" build.gradle
+          sed -i -E 's#gradle-[0-9.]+-(all|bin)\.zip#gradle-8.11.1-all.zip#' gradle/wrapper/gradle-wrapper.properties
+          cat variables.gradle; grep -n "com.android.tools.build" build.gradle; grep distributionUrl gradle/wrapper/gradle-wrapper.properties
+      - name: Stable signing key and increasing versionCode
+        env:
+          KS_B64: ${{ secrets.CUSTOMER_KEYSTORE_B64 }}
+          KS_PASS: ${{ secrets.CUSTOMER_KEYSTORE_PASSWORD }}
+          RUN_NO: ${{ github.run_number }}
+        run: |
+          test -n "$KS_B64" && test -n "$KS_PASS"
+          echo "$KS_B64" | base64 -d > android/app/customer.keystore
+          RUN_NO=$((RUN_NO+100)) python3 ci/patch_customer_gradle.py
+      - name: Build signed release APK
+        working-directory: android
+        env:
+          KS_PASS: ${{ secrets.CUSTOMER_KEYSTORE_PASSWORD }}
+        run: ./gradlew bundleRelease --no-daemon
+      - name: Verify AAB signature and manifest
+        run: |
+          AAB=$(ls android/app/build/outputs/bundle/release/*.aab | head -1)
+          ls -l $AAB
+          keytool -printcert -jarfile $AAB | grep -E "Owner|SHA256|Valid"
+          jarsigner -verify $AAB | head -3
+          grep -E "versionCode|versionName|compileSdk|targetSdk" android/app/build.gradle android/variables.gradle
+          cp $AAB $ASSET
+          unzip -p $ASSET base/manifest/AndroidManifest.xml | strings | grep -c SpMessagingService || true
+      - name: Publish AAB as its own release (APK releases untouched)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete latest-$ASSET --yes --cleanup-tag || true
+          gh release create latest-$ASSET $ASSET --title "Store Plus Play AAB" --notes "Play bundle, run ${{ github.run_number }}, versionCode $((${{ github.run_number }}+100))"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: StorePlus-aab
+          path: ${{ env.ASSET }}

@@ -221,9 +221,10 @@ async function viewOrder(id) {
 async function viewNotifs() {
   navBar('notif');
   const { data } = await SB.from('notifications').select('*').eq('user_id', ME.id).order('created_at', { ascending: false }).limit(60);
-  app.innerHTML = `<div class="hd"><a class="ib" href="#/">${ic('back')}</a><h1>الإشعارات</h1></div><button class="btn o s" id="pushb" style="margin-bottom:12px">${ic('bell', 18)} تفعيل إشعارات الجهاز</button>${(data || []).map((n) => `<a class="nt ${n.read ? '' : 'un'}" href="${esc(n.url || '#/notifications')}" data-id="${n.id}"><div><b>${esc(n.title)}</b><p>${esc(n.body)}</p><small>${num(dt(n.created_at))}</small></div></a>`).join('') || '<div class="empty">لا توجد إشعارات</div>'}`;
+  app.innerHTML = `<div class="hd"><a class="ib" href="#/">${ic('back')}</a><h1>الإشعارات</h1></div><button class="btn o s" id="pushb" style="margin-bottom:12px">${ic('bell', 18)} تفعيل إشعارات الجهاز</button>${(data || []).map((n) => `<a class="nt ${n.read ? '' : 'un'}" href="${esc(n.url || '#/notifications')}" data-id="${n.id}"><div class="nb"><b>${esc(n.title)}</b><p class="cl">${esc(n.body)}</p><small>${num(dt(n.created_at))}</small></div><button type="button" class="xp" hidden aria-label="عرض الرسالة كاملة"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button></a>`).join('') || '<div class="empty">لا توجد إشعارات</div>'}`;
   $("#pushb").onclick = () => enablePush();
   $$('.nt').forEach((a) => (a.onclick = () => SB.from('notifications').update({ read: true }).eq('id', a.dataset.id)));
+  $$('.nt').forEach((a) => { const p = a.querySelector('p'), x = a.querySelector('.xp'); if (p && x && p.scrollHeight > p.clientHeight + 1) { x.hidden = false; x.onclick = (e) => { e.preventDefault(); e.stopPropagation(); x.classList.toggle('op', p.classList.toggle('cl') === false); }; } });
   await SB.from('notifications').update({ read: true }).eq('user_id', ME.id).eq('read', false); UNREAD = 0;
 }
 function viewAccount() {
@@ -249,6 +250,7 @@ async function route() {
     else if (p[0] === 'notifications') await viewNotifs();
     else if (p[0] === 'account') viewAccount();
     else await viewHome();
+    spExtras();
   } catch (e) { console.error(e); app.innerHTML = '<div class="empty">حدث خطأ، حاول مرة أخرى</div>'; }
 }
 async function boot() {
@@ -259,6 +261,7 @@ async function boot() {
   if (!ME) { await SB.auth.signOut(); return viewAuth(); }
   if (ME.role === 'admin') { location.replace('admin.html'); return; }
   const [s] = await Promise.all([getSettings(), loadCatalog(), refreshUnread()]); SETTINGS = s;
+  reportBuild();
   if ((window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform()) || ('Notification' in window && Notification.permission === 'granted' && VAPID_PUBLIC)) enablePush(true).catch(() => {});
   await route();
 }
@@ -303,3 +306,16 @@ document.addEventListener('click', (e) => { if (e.target.closest && e.target.clo
   document.body.appendChild(d);
   setTimeout(() => { d.classList.add('out'); setTimeout(() => d.remove(), 700); }, 5000);
 })();
+
+function spExtras() {
+  if (!ME) return;
+  if (!document.getElementById('wach')) {
+    const w = document.createElement('a'); w.id = 'wach'; w.target = '_blank'; w.rel = 'noopener'; w.href = 'https://whatsapp.com/channel/0029VbFCRAcGufIto4tiC33L'; w.setAttribute('aria-label', 'قناة الواتساب');
+    w.innerHTML = '<svg viewBox="0 0 24 24" width="24" height="24"><circle cx="12" cy="12" r="12" fill="#25D366"/><path fill="#fff" d="M12 5.2a6.8 6.8 0 0 0-5.8 10.3L5.2 19l3.6-.9A6.8 6.8 0 1 0 12 5.2zm3.7 9.6c-.2.5-1 .9-1.4 1-.4 0-.8.2-2.7-.6-2.3-1-3.7-3.3-3.8-3.4-.1-.2-.9-1.2-.9-2.3s.6-1.6.8-1.8c.2-.2.4-.3.6-.3h.4c.1 0 .3 0 .5.4l.7 1.7c.1.1.1.3 0 .4l-.3.4-.3.3c-.1.1-.2.3-.1.5.1.2.6 1 1.3 1.6.9.8 1.6 1 1.8 1.1.2.1.3.1.4-.1l.6-.7c.1-.2.3-.2.5-.1l1.6.8c.2.1.3.2.4.3 0 .2 0 .6-.2 1.1z"/></svg><span>قناة الواتساب</span>';
+    document.body.appendChild(w);
+  }
+  if (!document.getElementById('ftr') && app.children.length) app.insertAdjacentHTML('beforeend', '<div id="ftr"><div>تم تصميم بواسطة المبرمج <a target="_blank" rel="noopener" href="https://wa.me/201099283934">Ali Henish</a></div><div>لمعرفة سياسة الخصوصية اضغط <a target="_blank" rel="noopener" href="https://storeplus-ali1.github.io/storeplus/privacy.html">هنا</a></div></div>');
+}
+function reportBuild() {
+  try { const b = Number(window.APP_BUILD || 0); if (b && ME && ME.id) SB.from('profiles').update({ app_build: b }).eq('id', ME.id).then(() => {}, () => {}); } catch (e) {}
+}

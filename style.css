@@ -105,7 +105,7 @@ input.in:focus,textarea.in:focus{border-color:#00c8ff}
 .lc.w span{background:#fff!important;border-color:#fff!important;width:auto!important;min-width:32px;padding:0 7px;border-radius:16px!important}.lc img.fc{filter:none!important;width:auto!important;height:18px!important;max-width:46px}
 .hero .logo{height:52px!important}.chips{display:none!important}
 
-body.ad #app{padding-bottom:22px}
+body.ad #app{padding-bottom:196px}
 
 #sfab{position:fixed;left:14px;bottom:22px;width:50px;height:50px;border-radius:50%;background:linear-gradient(135deg,#0a3cff,#00c8ff);color:#fff;align-items:center;justify-content:center;box-shadow:0 0 18px #00b7ffaa;z-index:40;border:2px solid #050b1c}
 
@@ -118,3 +118,8 @@ body.ad #app{padding-bottom:22px}
 @keyframes sphop{0%,90%,100%{transform:translateY(0)}93%{transform:translateY(-12px)}96%{transform:translateY(0)}98%{transform:translateY(-4px)}}
 
 .stk{position:sticky;top:0;z-index:30;background:#050b1c;margin:-14px -16px 0;padding:14px 16px 2px;box-shadow:0 6px 14px #050b1ccc}
+
+.nt .nb{flex:1;min-width:0}.nt p.cl{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.nt .xp{background:none;border:0;color:#2fc0ff;padding:2px;align-self:center;flex:none;cursor:pointer}.nt .xp svg{transition:transform .2s}.nt .xp.op svg{transform:rotate(180deg)}
+#wach{position:fixed;left:10px;bottom:77px;z-index:19;display:flex;flex-direction:column;align-items:center;gap:4px;text-decoration:none;color:#9fb4de;font-size:8.5px;line-height:1.1}
+#ftr{text-align:center;font-size:11px;color:#8fa6d4;line-height:2;margin-top:22px;padding-bottom:6px}#ftr a{color:#5cc8ff;text-decoration:underline;font-weight:700}

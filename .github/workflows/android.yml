@@ -66,7 +66,8 @@ jobs:
         run: |
           D=android/app/src/main/java/com/storeplus/app
           mkdir -p $D
-          cp native/SpSound.java native/MainActivity.java $D/
+          cp native/SpSound.java native/MainActivity.java native/SpMessagingService.java $D/
+          python3 ci/patch_manifest_service.py
       - run: npx cap sync android
       - name: Stable signing key and increasing versionCode
         env:
