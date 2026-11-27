@@ -92,11 +92,11 @@ function viewRecovery() {
 function showUpdateNotice() {
   const nb = Number(SETTINGS.update_build || 0), cur = Number(window.APP_BUILD || 0);
   if (!cur || !nb || nb <= cur || document.getElementById('upd')) return;
-  if (localStorage.getItem('sp_upd_seen') === String(nb)) return;
+  if (window.__updDismissed === nb) return;
   const d = document.createElement('div'); d.id = 'upd'; d.style.cssText = 'position:fixed;inset:0;background:rgba(2,6,20,.82);z-index:9999;display:flex;align-items:center;justify-content:center;padding:22px';
   d.innerHTML = `<div class="card" style="max-width:380px;width:100%;text-align:center;padding:24px 18px;border:1px solid #38d9ff"><div style="font-size:42px">🚀</div><h1 style="margin:8px 0">${esc(SETTINGS.update_title || 'يتوفر تحديث جديد')}</h1><div class="sub" style="font-size:14px;margin:10px 0 18px;white-space:pre-line">${esc(SETTINGS.update_text || 'نزّل أحدث نسخة من التطبيق للاستفادة من أحدث المزايا.')}</div><button class="btn" id="updgo">تحديث الآن</button><button class="btn o" id="updlt" style="margin-top:8px">لاحقًا</button></div>`;
   document.body.appendChild(d);
-  $('#updlt').onclick = () => { localStorage.setItem('sp_upd_seen', String(nb)); d.remove(); };
+  $('#updlt').onclick = () => { window.__updDismissed = nb; d.remove(); };
   $('#updgo').onclick = () => { const u = SETTINGS.update_url; if (u && /^https?:\/\//.test(u)) window.open(u, '_system'); };
 }
 async function viewHome() {
