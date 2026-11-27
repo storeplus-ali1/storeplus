@@ -8,3 +8,9 @@ assert '</application>' in t
 t = t.replace('</application>', svc + '</application>', 1)
 open(m, 'w').write(t)
 print('service patched')
+g = 'android/app/build.gradle'
+b = open(g).read()
+if 'firebase-messaging' not in b:
+    b = b.replace('dependencies {', "dependencies {\n    implementation 'com.google.firebase:firebase-messaging:23.3.1'", 1)
+    open(g, 'w').write(b)
+print('firebase-messaging dep added')
